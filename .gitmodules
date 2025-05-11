@@ -1,0 +1,15 @@
+[submodule "external/xlnt"]
+	path = external/xlnt
+	url = https://github.com/tfussell/xlnt
+[submodule "external/raylib"]
+	path = external/raylib
+	url = https://github.com/raysan5/raylib
+[submodule "external/rlimgui"]
+	path = external/rlimgui
+	url = https://github.com/raylib-extras/rlImGui
+[submodule "external/imgui"]
+	path = external/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "external/nfd"]
+	path = external/nfd
+	url = https://github.com/btzy/nativefiledialog-extended
