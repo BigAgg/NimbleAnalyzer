@@ -23,7 +23,7 @@ namespace engine {
 };
 
 namespace analyzer {
-	static Project loadedProject;
+	//static Project loadedProject;
 };
 
 namespace ui {

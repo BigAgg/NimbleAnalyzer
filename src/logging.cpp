@@ -3,6 +3,13 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <string>
+#include <vector>
+
+static std::string lastWarning = "";
+static std::vector<std::string> warnings;
+static std::string lastError = "";
+static std::vector<std::string> errors;
 
 namespace strings {
 	bool ends_with(const std::string& value, const std::string& ending) {
@@ -27,7 +34,13 @@ namespace logging {
 	void log(const std::string& type, const std::string& msg) {
 		if (type == "ERROR") {
 			std::cerr << strings::GetTimestamp() << "\t" << type << ":\t" << msg << "\n";
+			lastError = msg;
+			errors.push_back(lastError);
 			logfile.flush();
+		}
+		else if (type == "WARNING") {
+			lastWarning = msg;
+			warnings.push_back(lastWarning);
 		}
 		std::cout << strings::GetTimestamp() << "\t" << type << ":\t" << msg << "\n";
 	}
@@ -70,5 +83,18 @@ namespace logging {
 	}
 	void deletelog(const std::string& path) {
 		std::remove(path.c_str());
+	}
+
+	std::string GetLastError() {
+		return lastError;
+	}
+	std::string GetLastWarning() {
+		return lastWarning;
+	}
+	std::vector<std::string> GetErrors() {
+		return errors;
+	}
+	std::vector<std::string> GetWarnings() {
+		return warnings;
 	}
 }

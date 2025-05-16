@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace strings {
 bool ends_with(const std::string &value, const std::string &ending);
@@ -53,4 +54,8 @@ void startlogging(const std::string &path, const std::string &filename);
 void stoplogging();
 void backuplog(const std::string &path, bool crash = false);
 void deletelog(const std::string &path);
+std::string GetLastError();
+std::string GetLastWarning();
+std::vector<std::string> GetErrors();
+std::vector<std::string> GetWarnings();
 } // namespace logging

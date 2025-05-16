@@ -43,7 +43,3 @@ private:
 	std::vector<std::pair<std::string, std::pair<std::string, xlnt::cell>>> m_cellinfo;
 };
 
-class Sheet {
-public:
-	void LoadFile(const std::string)
-};

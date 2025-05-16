@@ -4,7 +4,7 @@
 #include <string>
 
 namespace ImGui {
-bool InputStringWithHint(std::string& str, const std::string& label, const char* hint, ImGuiInputFlags flags) {
+bool InputStringWithHint(std::string& str, const std::string& label, const char* hint, ImGuiInputTextFlags flags) {
 	char value_buff[256];
 	char label_buff[256];
 	strncpy_s(value_buff, str.c_str(), 256);
@@ -16,7 +16,7 @@ bool InputStringWithHint(std::string& str, const std::string& label, const char*
 	return false;
 }
 
-bool InputStringWithHint(std::string& str, const char* label, const char* hint, ImGuiInputFlags flags) {
+bool InputStringWithHint(std::string& str, const char* label, const char* hint, ImGuiInputTextFlags flags) {
 	char value_buff[256];
 	strncpy_s(value_buff, str.c_str(), 256);
 	if (InputTextWithHint(label, hint, value_buff, 256), flags) {
@@ -26,7 +26,7 @@ bool InputStringWithHint(std::string& str, const char* label, const char* hint, 
 	return false;
 }
 
-bool InputString(std::string& str, const std::string& label, ImGuiInputFlags flags) {
+bool InputString(std::string& str, const std::string& label, ImGuiInputTextFlags flags) {
 	char value_buff[256];
 	char label_buff[256];
 	strncpy_s(value_buff, str.c_str(), 256);
@@ -38,7 +38,7 @@ bool InputString(std::string& str, const std::string& label, ImGuiInputFlags fla
 	return false;
 }
 
-bool InputString(std::string& str, const char* label, ImGuiInputFlags flags) {
+bool InputString(std::string& str, const char* label, ImGuiInputTextFlags flags) {
 	char value_buff[256];
 	strncpy_s(value_buff, str.c_str(), 256);
 	if (InputText(label, value_buff, 256, flags)) {

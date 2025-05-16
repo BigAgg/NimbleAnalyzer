@@ -11,11 +11,12 @@
 #include "logging.h"
 #include "project.h"
 #include "fileDialog.h"
+#include "fileloader.h"
 
 namespace fs = std::filesystem;
 
 static Project new_project;
-static Project current_project;
+static Project *current_project = &new_project;
 static std::vector<Project> projects;
 static int selected_project = -1;
 
@@ -229,7 +230,7 @@ namespace ui {
 		return true;
 	}
 
-	void MainMenu() {
+	static void MainMenu() {
 		ImGui::BeginMainMenuBar();
 #ifdef VERSION
 		ImGui::Text("%s", VERSION);
@@ -239,6 +240,21 @@ namespace ui {
 			uiSettings.ui_mode = UI_SELECTION;
 			new_project = Project();
 		}
+		// Error output
+		if (ImGui::Button("Errors in txt")) {
+			std::ofstream file("errors.txt");
+			if (file) {
+				for (auto& error : logging::GetErrors()) {
+					file << error << "\n";
+				}
+			}
+			std::ofstream _file("warnings.txt");
+			if (_file) {
+				for (auto& warning : logging::GetWarnings()) {
+					_file << warning << "\n";
+				}
+			}
+		}
 		// Datei Settings
 		if (ImGui::BeginMenu("Datei")) {
 			ImGui::EndMenu();
@@ -246,7 +262,7 @@ namespace ui {
 		ImGui::EndMainMenuBar();
 	}
 
-	void UISelection() {
+	static void UISelection() {
 		const char* uis[] = {
 			"Wareneingang", (char*)u8"Qualitätssicherung", "Service"
 		};
@@ -268,23 +284,23 @@ namespace ui {
 		ImGui::End();
 	}
 
-	void UIAssambly() {
+	static void UIAssambly() {
 		const std::string identifier = "ASSAMBLY";
-		int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar;
+		int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar;
 		float screenW = static_cast<float>(GetScreenWidth());
 		float screenH = static_cast<float>(GetScreenHeight());
 		ImGui::SetNextWindowSize({ screenW, screenH - 22.0f });
 		ImGui::SetNextWindowPos({ 0.0f, 22.0f });
 		ImGui::Begin("Wareneingang ## Window", nullptr, flags);
 		// Drawing the main menu for this window
-		if (ImGui::BeginMenuBar());
+		ImGui::BeginMenuBar();
 		// Create new Project
 		if (ImGui::BeginMenu("Projekt anlegen")) {
 			std::string name = new_project.GetName();
 			if (ImGui::InputString(name, "Projektname")) {
 				new_project.SetName(name);
 			}
-			if (ImGui::Button("Anlegen")) {
+			if (ImGui::Button("Anlegen") && new_project.GetName() != "") {
 				bool anlegen = true;
 				for (const Project& p : projects) {
 					if (p.GetName() == name && p.GetParent() == identifier) {
@@ -296,15 +312,15 @@ namespace ui {
 					new_project.SetParent(identifier);
 					projects.push_back(new_project);
 					new_project = Project();
-					current_project = projects.back();
-					selected_project = projects.size() - 1;
+					current_project = &projects.back();
+					selected_project = static_cast<int>(projects.size()) - 1;
 				}
 			}
 			ImGui::EndMenu();
 		}
 		ImGui::EndMenuBar();
 		// Drawing Project selection
-		ImGui::SetNextWindowSize({ 300.0f, 120.0f });
+		ImGui::SetNextWindowSize({ 300.0f, 150.0f });
 		ImGui::BeginChild("Project selection window");
 		ImGui::Text((char*)u8"Projekt wählen");
 		if (ImGui::BeginListBox("## Project selection", {300.0f, 75.0f})) {
@@ -312,54 +328,59 @@ namespace ui {
 				Project& project = projects[x];
 				if (project.GetParent() != identifier)
 					continue;
-				const bool selected = (selected_project == x);
+				bool selected = (selected_project == x);
 				const std::string& name = project.GetName();
 				char buff[256];
 				strncpy_s(buff, name.c_str(), 256);
 				if (ImGui::Selectable(buff, &selected)) {
 					selected_project = x;
-					current_project = projects[x];
+					current_project = &projects[x];
 				}
 				if (selected)
 					ImGui::SetItemDefaultFocus();
 			}
 			ImGui::EndListBox();
+			if (projects.size() > 0 && ImGui::Button("Projekt entfernen")) {
+				projects.erase(projects.cbegin() + selected_project);
+				selected_project -= 1;
+				if (selected_project >= 0)
+					current_project = &projects[selected_project];
+				else
+					current_project = &new_project;
+			}
 		}
 		ImGui::EndChild();
 		// Drawing File selection
-		if (current_project.GetParent() == identifier) {
+		if (current_project->GetParent() == identifier) {
 			ImGui::SameLine();
 			ImGui::BeginChild("Project file selection window");
-			ImGui::Text((char*)u8"Datei wählen");
-			if (ImGui::BeginListBox) {
-				const std::vector<std::string> files = current_project.GetFilePaths();
-				const std::string current_file = current_project.GetSelectedFile();
+			ImGui::Text((char*)u8"Projektdateien");
+			if (ImGui::BeginListBox("## File Selection", {400.0f, 75.0f})) {
+				const std::vector<std::string> files = current_project->GetFilePaths();
+				const std::string current_file = current_project->GetSelectedFile();
 				for (const std::string& file : files) {
-					const bool selected = (file == current_file);
+					bool selected = (file == current_file);
 					const fs::path p = file;
 					char buff[256];
 					strncpy_s(buff, p.filename().string().c_str(), 256);
 					if (ImGui::Selectable(buff, &selected)) {
-						current_project.SelectFile(file);
+						current_project->SelectFile(file);
 					}
 					if (selected)
 						ImGui::SetItemDefaultFocus();
 				}
+				ImGui::EndListBox();
 			}
 			if (ImGui::Button((char*)u8"Neue Datei Hinzufügen")) {
-				current_project.AddFilePath(OpenFileDialog("Excel Sheet", "xlsx"));
+				current_project->AddFilePath(OpenFileDialog("Excel Sheet", "xlsx"));
+			}
+			if (ImGui::Button("Datei laden")) {
+				FileInfo fileinfo;
+				fileinfo.LoadFile(current_project->GetSelectedFile());
 			}
 			ImGui::EndChild();
 		}
 		ImGui::End();
-	}
-
-	void UIQualityControl() {
-
-	}
-
-	void UIService() {
-
 	}
 
 	void HandleUI() {
@@ -373,12 +394,6 @@ namespace ui {
 			break;
 		case UI_ASSAMBLY:
 			UIAssambly();
-			break;
-		case UI_QUALITYCONTROL:
-			UIQualityControl();
-			break;
-		case UI_SERVICE:
-			UIService();
 			break;
 		case UI_NONE:
 		default:
