@@ -8,6 +8,6 @@ enum DATA_DISPLAY_MODES {
 	DATA_DISPLAY_MODE_
 };
 
-void DisplayData(RowInfo &data, const std::string mode = "");
-
+void DisplayData(RowInfo &data, const unsigned int identifier, const std::string &mode = "vertical-rightheader");
 void DisplayDataWithSettings(RowInfo& data, std::vector<std::pair<std::string, bool>>& settings);
+

@@ -2,11 +2,8 @@
 
 #include <string>
 #include <vector>
-#include <xlnt/xlnt.hpp>
 
 class Project;
-class Data;
-class Sheet;
 
 class Project {
 public:
@@ -30,16 +27,5 @@ private:
 	std::string m_parent = "";
 	std::string m_currentFile = "";
 	std::vector<std::string> m_paths;
-};
-
-class Data {
-public:
-	void SetValue(const std::string& identifier, const std::string& value);
-	std::string GetValue(const std::string& identifier) const;
-	void AddValue(const std::string& identifier, const std::string& value, xlnt::cell cell);
-	xlnt::cell GetCellinfo(const std::string& identifier);
-
-private:
-	std::vector<std::pair<std::string, std::pair<std::string, xlnt::cell>>> m_cellinfo;
 };
 

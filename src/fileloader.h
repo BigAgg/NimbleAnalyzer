@@ -17,7 +17,8 @@ public:
 	void GetHeaderIndex(const std::string& header, int* x, int* y);
 
 	RowInfo GetRowdata(const int rowIdx);
-	void SetRowData(const int rowIdx);
+	std::vector<RowInfo> GetData();
+	void SetRowData(const RowInfo& rowinfo, const int rowIdx);
 	void AddRowData(const RowInfo& rowinfo);
 
 	bool IsReady() const;
@@ -40,9 +41,13 @@ public:
 	std::vector<std::pair<std::string, std::string>> GetData();
 	void SetData(const std::vector<std::pair<std::string, std::string>>& data);
 
+	bool Changed();
+	void ResetChanged();
+
 private:
 	//										Header			 Value
 	std::vector<std::pair<std::string, std::string>> m_rowinfo;
+	bool m_changed = false;
 };
 
 enum FILE_HEADER_SETTING {

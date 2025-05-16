@@ -12,6 +12,7 @@
 #include "project.h"
 #include "fileDialog.h"
 #include "fileloader.h"
+#include "dataDisplayer.h"
 
 namespace fs = std::filesystem;
 
@@ -284,9 +285,10 @@ namespace ui {
 		ImGui::End();
 	}
 
+	FileInfo fileinfo;	// Just for testing, gets put into fileloader later
 	static void UIAssambly() {
 		const std::string identifier = "ASSAMBLY";
-		int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar;
+		int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_HorizontalScrollbar;
 		float screenW = static_cast<float>(GetScreenWidth());
 		float screenH = static_cast<float>(GetScreenHeight());
 		ImGui::SetNextWindowSize({ screenW, screenH - 22.0f });
@@ -297,7 +299,7 @@ namespace ui {
 		// Create new Project
 		if (ImGui::BeginMenu("Projekt anlegen")) {
 			std::string name = new_project.GetName();
-			if (ImGui::InputString(name, "Projektname")) {
+			if (ImGui::InputStringWithHint(name, "Projektname", "projektname")) {
 				new_project.SetName(name);
 			}
 			if (ImGui::Button("Anlegen") && new_project.GetName() != "") {
@@ -320,8 +322,7 @@ namespace ui {
 		}
 		ImGui::EndMenuBar();
 		// Drawing Project selection
-		ImGui::SetNextWindowSize({ 300.0f, 150.0f });
-		ImGui::BeginChild("Project selection window");
+		ImGui::BeginChild("Project selection window", {300.0f, 170.0f});
 		ImGui::Text((char*)u8"Projekt wählen");
 		if (ImGui::BeginListBox("## Project selection", {300.0f, 75.0f})) {
 			for (int x = 0; x < projects.size(); x++) {
@@ -353,7 +354,7 @@ namespace ui {
 		// Drawing File selection
 		if (current_project->GetParent() == identifier) {
 			ImGui::SameLine();
-			ImGui::BeginChild("Project file selection window");
+			ImGui::BeginChild("Project file selection window", {500.0f, 150.0f});
 			ImGui::Text((char*)u8"Projektdateien");
 			if (ImGui::BeginListBox("## File Selection", {400.0f, 75.0f})) {
 				const std::vector<std::string> files = current_project->GetFilePaths();
@@ -375,10 +376,20 @@ namespace ui {
 				current_project->AddFilePath(OpenFileDialog("Excel Sheet", "xlsx"));
 			}
 			if (ImGui::Button("Datei laden")) {
-				FileInfo fileinfo;
 				fileinfo.LoadFile(current_project->GetSelectedFile());
 			}
 			ImGui::EndChild();
+		}
+		// Drawing the data for testing
+		ImGui::Separator();
+		std::vector<RowInfo> &&data = fileinfo.GetData();
+		int x = 0;
+		for (RowInfo& row : data) {
+			//DisplayData(row, x, "horizontal-aboveheader");
+			DisplayData(row, x, "vertical-rightheader");
+			if (row.Changed())
+				fileinfo.SetRowData(row, x);
+			x++;
 		}
 		ImGui::End();
 	}

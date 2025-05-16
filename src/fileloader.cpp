@@ -198,8 +198,13 @@ void FileInfo::LoadFile(const std::string& filename) {
 		logging::logwarning("FILELOADER::FileInfo::LoadFile Loaded file does not contain 'DATA' in the 'A' Column\n Read the Documentation!");
 		return;
 	}
+	// Processing headerinfo
+	for (int y = 1; y < m_sheetData[headerIndex].size(); y++) {
+		std::pair<int, int> index = std::make_pair(headerIndex, y);
+		m_headerinfo.push_back(std::make_pair(m_sheetData[headerIndex][y], index));
+	}
 	// Processing RowInfo
-	for (int x = headerIndex; x < m_sheetData.size(); x++) {
+	for (int x = headerIndex + 1; x < m_sheetData.size(); x++) {
 		const auto& row = m_sheetData[x];
 		RowInfo rowinfo;
 		bool dataSet = false;
@@ -234,13 +239,23 @@ void FileInfo::GetHeaderIndex(const std::string& header, int* x, int* y){
 }
 
 RowInfo FileInfo::GetRowdata(const int rowIdx){
-	return RowInfo();
+	if(rowIdx >= m_rowinfo.size())
+		return RowInfo();
+	return m_rowinfo[rowIdx];
 }
 
-void FileInfo::SetRowData(const int rowIdx){
+std::vector<RowInfo> FileInfo::GetData() {
+	return m_rowinfo;
+}
+
+void FileInfo::SetRowData(const RowInfo& rowinfo, const int rowIdx){
+	if (rowIdx >= m_rowinfo.size())
+		return;
+	m_rowinfo[rowIdx] = rowinfo;
 }
 
 void FileInfo::AddRowData(const RowInfo& rowinfo){
+	m_rowinfo.push_back(rowinfo);
 }
 
 bool FileInfo::IsReady() const{
@@ -268,6 +283,7 @@ void RowInfo::UpdateData(const std::string& header, const std::string& newValue)
 		return;
 	}
 	it->second = newValue;
+	m_changed = true;
 }
 
 std::string RowInfo::GetData(const std::string& header) const{
@@ -289,9 +305,19 @@ void RowInfo::SetData(const std::vector<std::pair<std::string, std::string>>& da
 	m_rowinfo = data;
 }
 
+bool RowInfo::Changed() {
+	bool tmp = m_changed;
+	m_changed = false;
+	return tmp;
+}
+
+void RowInfo::ResetChanged() {
+	m_changed = false;
+}
+
 void FileSettings::AddHeaderSetting(const std::string& header) {
 	auto it = std::find_if(m_headersettings.begin(), m_headersettings.end(),
-		[&header](const std::pair<std::string, std::string>& p) {
+		[&header](const std::pair<std::string, bool>& p) {
 			return p.first == header;
 		});
 	if (it == m_headersettings.end()) {
@@ -302,3 +328,4 @@ void FileSettings::AddHeaderSetting(const std::string& header) {
 		b = false;
 	}
 }
+

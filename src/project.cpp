@@ -49,40 +49,7 @@ void Project::SelectFile(const std::string& path){
 	}
 }
 
-std::string Project::GetSelectedFile() const{
+std::string Project::GetSelectedFile() const {
 	return m_currentFile;
 }
 
-void Data::SetValue(const std::string& identifier, const std::string& value) {
-	for (auto& p : m_cellinfo) {
-		if (p.first == identifier) {
-			p.second.first = value;
-			return;
-		}
-	}
-}
-
-std::string Data::GetValue(const std::string& identifier) const{
-	for (auto& p : m_cellinfo) {
-		if (p.first == identifier)
-			return p.second.first;
-	}
-	return "";
-}
-
-void Data::AddValue(const std::string& identifier, const std::string& value, xlnt::cell cell){
-	for (auto& p : m_cellinfo) {
-		if (p.first == identifier)
-			return;
-	}
-	m_cellinfo.push_back(std::make_pair(identifier, std::make_pair(value, cell)));
-}
-
-xlnt::cell Data::GetCellinfo(const std::string& identifier){
-	for (auto& p : m_cellinfo) {
-		if (p.first == identifier)
-			return p.second.second;
-	}
-	xlnt::cell cell = *new xlnt::cell(cell);
-	return cell;
-}

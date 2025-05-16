@@ -9,7 +9,7 @@ bool InputStringWithHint(std::string& str, const std::string& label, const char*
 	char label_buff[256];
 	strncpy_s(value_buff, str.c_str(), 256);
 	strncpy_s(label_buff, label.c_str(), 256);
-	if (InputTextWithHint(label_buff, hint, value_buff, 256), flags) {
+	if (InputTextWithHint(label_buff, hint, value_buff, 256, flags)) {
 		str = std::string(value_buff);
 		return true;
 	}
@@ -19,7 +19,7 @@ bool InputStringWithHint(std::string& str, const std::string& label, const char*
 bool InputStringWithHint(std::string& str, const char* label, const char* hint, ImGuiInputTextFlags flags) {
 	char value_buff[256];
 	strncpy_s(value_buff, str.c_str(), 256);
-	if (InputTextWithHint(label, hint, value_buff, 256), flags) {
+	if (InputTextWithHint(label, hint, value_buff, 256, flags)) {
 		str = std::string(value_buff);
 		return true;
 	}
