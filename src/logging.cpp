@@ -28,6 +28,7 @@ namespace logging {
 	static std::string logfilePath;
 	static std::string logfileName;
 	static std::streambuf* oldOutBuf;
+	static std::streambuf* oldCerrBuf;
 
 	namespace fs = std::filesystem;
 
@@ -37,12 +38,14 @@ namespace logging {
 			lastError = msg;
 			errors.push_back(lastError);
 			logfile.flush();
+			return;
 		}
 		else if (type == "WARNING") {
 			lastWarning = msg;
 			warnings.push_back(lastWarning);
 		}
 		std::cout << strings::GetTimestamp() << "\t" << type << ":\t" << msg << "\n";
+		logfile.flush();
 	}
 	void startlogging(const std::string& path, const std::string& filename) {
 		if (fs::is_directory(path))
@@ -51,7 +54,9 @@ namespace logging {
 		logfileName = filename;
 		logfile.open(path + filename, std::ios::out);
 		oldOutBuf = std::cout.rdbuf();
+		oldCerrBuf = std::cerr.rdbuf();
 		std::cout.rdbuf(logfile.rdbuf());
+		std::cerr.rdbuf(logfile.rdbuf());
 	}
 	void stoplogging() {
 		logfile.flush();

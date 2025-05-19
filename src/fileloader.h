@@ -5,6 +5,7 @@
 #include <xlnt/xlnt.hpp>
 
 class RowInfo;
+class FileSettings;
 class FileInfo;
 
 class FileInfo {
@@ -12,9 +13,11 @@ public:
 	void LoadFile(const std::string& filename);
 	void SaveFile();
 	void SaveFileAs(const std::string& filename);
+	std::string GetFilename() const;
 
 	std::pair<int, int> GetHeaderIndex(const std::string& header);
 	void GetHeaderIndex(const std::string& header, int* x, int* y);
+	std::vector<std::string> GetHeaderNames() const;
 
 	RowInfo GetRowdata(const int rowIdx);
 	std::vector<RowInfo> GetData();
@@ -22,6 +25,8 @@ public:
 	void AddRowData(const RowInfo& rowinfo);
 
 	bool IsReady() const;
+
+	FileSettings *Settings;
 
 private:
 	std::string m_filename = "";
@@ -71,10 +76,24 @@ public:
 	void SetFileSetting(const FILE_SETTING setting);
 	bool ToggleFileSetting(const FILE_SETTING setting);
 	bool GetFileSetting(const FILE_SETTING setting) const;
+
+	void SetParentFile(FileInfo* parentFile);
+	void SetMergeFile(const FileInfo otherFile);
+	FileInfo GetMergeFile() const;
+	void AddHeaderToMerge(const std::string& sourceHeader, const std::string& destHeader);
+	void SetMergeHeaderIf(const std::string& sourceHeader, const std::string& destHeader);
+	void RemoveHeaderToMerge(const std::string& header);
+	void MergeFiles();
+	bool IsMergeFileSet() const;
 private:
 	void m_initbool(bool* container, size_t container_size);
 	std::vector<std::pair<std::string, bool[sizeof(FILE_HEADER_SETTING)]>> m_headersettings;
 	bool m_filesettings[sizeof(FILE_SETTING)];
 	bool m_initialized = false;
+	FileInfo* m_parentFile = nullptr;
+	FileInfo m_mergefile;
+	bool m_mergefileSet = false;
+	std::vector<std::pair<std::string, std::string>> m_mergeheaders;
+	std::pair<std::string, std::string> m_mergeif;
 };
 

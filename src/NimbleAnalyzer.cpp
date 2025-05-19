@@ -145,12 +145,9 @@ namespace analyzer {
 namespace ui {
 	enum UI_MODE {
 		UI_NONE,
-		UI_SELECTION,
-		UI_ASSAMBLY,
-		UI_QUALITYCONTROL,
-		UI_SERVICE,
-		UI_UNIVERSAL,
-		UI_DEFAULT = UI_SELECTION
+		UI_PROJECT_WINDOW,
+		UI_LOADED_PROJECT_WINDOW,
+		UI_DEFAULT = UI_PROJECT_WINDOW,
 	};
 	
 	static Texture file_icon;
@@ -158,13 +155,68 @@ namespace ui {
 	static Texture save_icon;
 
 	static struct {
-		UI_MODE ui_mode = UI_SELECTION;
+		UI_MODE ui_mode = UI_DEFAULT;
 	} uiSettings;
 
 	static UI_ERROR errorcode = UI_NONE_ERROR;
 
+	static std::vector<std::pair<std::string, std::string>> s_headerMerges;
+	static std::string s_headerIf = "";
+	static std::vector<std::string> s_mergefileHeaders;
+
 	UI_ERROR GetErrorcode() {
 		return errorcode;
+	}
+
+	static void s_SetupHeaderMerges(FileInfo& fileinfo) {
+		s_headerMerges.clear();
+		if (!fileinfo.IsReady())
+			return;
+		auto&& data = fileinfo.GetData();
+		if (data.size() <= 0)
+			return;
+		auto& row = data[0];
+		for (auto& cell : row.GetData()) {
+			s_headerMerges.push_back(std::make_pair(cell.first, ""));
+		}
+	}
+
+	static void s_SetupMergefileHeaders(FileInfo& fileinfo) {
+		s_mergefileHeaders.clear();
+		if (!fileinfo.IsReady())
+			return;
+		auto&& headers = fileinfo.GetHeaderNames();
+		if (headers.size() <= 0)
+			return;
+		for (const std::string& header : headers) {
+			if(header != "")
+				s_mergefileHeaders.push_back(header);
+		}
+	}
+
+	static void s_SetupMergefile(FileInfo& fileinfo) {
+		// Setup mearchif
+		bool headerIfSet = false;
+		for (auto& pair : s_headerMerges) {
+			if (pair.first == s_headerIf && pair.second != "") {
+				fileinfo.Settings->SetMergeHeaderIf(pair.first, pair.second);
+				headerIfSet = true;
+				break;
+			}
+		}
+		if (!headerIfSet) {
+			logging::logwarning("NIMBLEANALYZER::s_SetupMergefile Could not set HeaderIf: %s with header to search!\n Either no checkbox selected or no Mergefile header selected", s_headerIf.c_str());
+			return;
+		}
+		for (auto& pair : s_headerMerges) {
+			if (pair.first == s_headerIf)
+				continue;
+			if (pair.first == "")
+				continue;
+			if (pair.second == "")
+				continue;
+			fileinfo.Settings->AddHeaderToMerge(pair.first, pair.second);
+		}
 	}
 
 	bool Init() {
@@ -237,8 +289,8 @@ namespace ui {
 		ImGui::Text("%s", VERSION);
 #endif
 		// Arbeitsfenster wechseln
-		if (ImGui::Button("Arbeitsumgebung wechseln")) {
-			uiSettings.ui_mode = UI_SELECTION;
+		if (ImGui::Button("Projekt wechseln")) {
+			uiSettings.ui_mode = UI_DEFAULT;
 			new_project = Project();
 		}
 		// Error output
@@ -256,44 +308,10 @@ namespace ui {
 				}
 			}
 		}
-		// Datei Settings
-		if (ImGui::BeginMenu("Datei")) {
-			ImGui::EndMenu();
-		}
 		ImGui::EndMainMenuBar();
 	}
 
-	static void UISelection() {
-		const char* uis[] = {
-			"Wareneingang", (char*)u8"Qualitätssicherung", "Service"
-		};
-		int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
-		float screenW = static_cast<float>(GetScreenWidth());
-		float screenH = static_cast<float>(GetScreenHeight());
-		ImGui::SetNextWindowSize({ screenW, screenH });
-		ImGui::SetNextWindowPos({ 0.0f, 20.0f });
-		ImGui::Begin((char*)u8"Arbeitsumgebung wählen", nullptr, flags);
-		if (ImGui::Button(uis[0])) {
-			uiSettings.ui_mode = UI_ASSAMBLY;
-		}
-		if (ImGui::Button(uis[1])) {
-			uiSettings.ui_mode = UI_QUALITYCONTROL;
-		}
-		if (ImGui::Button(uis[2])) {
-			uiSettings.ui_mode = UI_SERVICE;
-		}
-		ImGui::End();
-	}
-
-	FileInfo fileinfo;	// Just for testing, gets put into fileloader later
-	static void UIAssambly() {
-		const std::string identifier = "ASSAMBLY";
-		int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_HorizontalScrollbar;
-		float screenW = static_cast<float>(GetScreenWidth());
-		float screenH = static_cast<float>(GetScreenHeight());
-		ImGui::SetNextWindowSize({ screenW, screenH - 22.0f });
-		ImGui::SetNextWindowPos({ 0.0f, 22.0f });
-		ImGui::Begin("Wareneingang ## Window", nullptr, flags);
+	static void DisplayMenuBar() {
 		// Drawing the main menu for this window
 		ImGui::BeginMenuBar();
 		// Create new Project
@@ -305,13 +323,12 @@ namespace ui {
 			if (ImGui::Button("Anlegen") && new_project.GetName() != "") {
 				bool anlegen = true;
 				for (const Project& p : projects) {
-					if (p.GetName() == name && p.GetParent() == identifier) {
+					if (p.GetName() == name) {
 						anlegen = false;
 						break;
 					}
 				}
 				if (anlegen) {
-					new_project.SetParent(identifier);
 					projects.push_back(new_project);
 					new_project = Project();
 					current_project = &projects.back();
@@ -321,14 +338,13 @@ namespace ui {
 			ImGui::EndMenu();
 		}
 		ImGui::EndMenuBar();
-		// Drawing Project selection
-		ImGui::BeginChild("Project selection window", {300.0f, 170.0f});
+	}
+
+	static void DisplayProjectSelection() {
 		ImGui::Text((char*)u8"Projekt wählen");
 		if (ImGui::BeginListBox("## Project selection", {300.0f, 75.0f})) {
 			for (int x = 0; x < projects.size(); x++) {
 				Project& project = projects[x];
-				if (project.GetParent() != identifier)
-					continue;
 				bool selected = (selected_project == x);
 				const std::string& name = project.GetName();
 				char buff[256];
@@ -350,46 +366,132 @@ namespace ui {
 					current_project = &new_project;
 			}
 		}
-		ImGui::EndChild();
-		// Drawing File selection
-		if (current_project->GetParent() == identifier) {
+	}
+
+	static void DisplayFileSelection() {
+		ImGui::Text((char*)u8"Projektdateien");
+		if (ImGui::BeginListBox("## File Selection", {400.0f, 75.0f})) {
+			const std::vector<std::string> files = current_project->GetFilePaths();
+			const std::string current_file = current_project->GetSelectedFile();
+			for (const std::string& file : files) {
+				bool selected = (file == current_file);
+				const fs::path p = file;
+				char buff[256];
+				strncpy_s(buff, p.filename().string().c_str(), 256);
+				if (ImGui::Selectable(buff, &selected)) {
+					current_project->SelectFile(file);
+				}
+				if (selected)
+					ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndListBox();
+		}
+		if (ImGui::Button((char*)u8"Neue Datei Hinzufügen")) {
+			current_project->AddFilePath(OpenFileDialog("Excel Sheet", "xlsx"));
+		}
+		if (ImGui::Button("Datei laden")) {
+			current_project->loadedFile.LoadFile(current_project->GetSelectedFile());
+			s_SetupHeaderMerges(current_project->loadedFile);
+		}
+	}
+
+	static void DisplayFileSettings() {
+		fs::path filepath = current_project->loadedFile.Settings->GetMergeFile().GetFilename();
+		ImGui::Text("Aktuelle Mergefile: %s", filepath.filename().string().c_str());
+		if (ImGui::Button("Neue Mergefile")) {
+			std::string filename = OpenFileDialog("Excel Sheet", "xlsx");
+			if (filename != "") {
+				FileInfo mergefile;
+				mergefile.LoadFile(filename);
+				if (mergefile.IsReady()) {
+					current_project->loadedFile.Settings->SetMergeFile(mergefile);
+					s_SetupMergefileHeaders(mergefile);
+				}
+			}
+		}
+	}
+
+	static void DisplayHeaderMergeSettings() {
+		if (ImGui::Button((char*)u8"Übernehmen")) {
+			s_SetupMergefile(current_project->loadedFile);
+		}
+		if (ImGui::Button("Daten Mergen")) {
+			current_project->loadedFile.Settings->MergeFiles();
+		}
+		for (auto& pair : s_headerMerges) {
+			bool searchIf = (pair.first == s_headerIf);
+			std::string label = "## Datensuche ##" + pair.first;
+			if (ImGui::Checkbox(label.c_str(), &searchIf)) {
+				if (searchIf)
+					s_headerIf = pair.first;
+				else
+					s_headerIf = "";
+			}
 			ImGui::SameLine();
-			ImGui::BeginChild("Project file selection window", {500.0f, 150.0f});
-			ImGui::Text((char*)u8"Projektdateien");
-			if (ImGui::BeginListBox("## File Selection", {400.0f, 75.0f})) {
-				const std::vector<std::string> files = current_project->GetFilePaths();
-				const std::string current_file = current_project->GetSelectedFile();
-				for (const std::string& file : files) {
-					bool selected = (file == current_file);
-					const fs::path p = file;
-					char buff[256];
-					strncpy_s(buff, p.filename().string().c_str(), 256);
-					if (ImGui::Selectable(buff, &selected)) {
-						current_project->SelectFile(file);
+			if (ImGui::BeginCombo(pair.first.c_str(), pair.second.c_str())) {
+				for (auto& header : s_mergefileHeaders) {
+					bool selected = (header == pair.second);
+					if (ImGui::Selectable(header.c_str(), &selected)) {
+						pair.second = header;
 					}
 					if (selected)
 						ImGui::SetItemDefaultFocus();
 				}
-				ImGui::EndListBox();
+				ImGui::EndCombo();
 			}
-			if (ImGui::Button((char*)u8"Neue Datei Hinzufügen")) {
-				current_project->AddFilePath(OpenFileDialog("Excel Sheet", "xlsx"));
+			ImGui::SameLine();
+			std::string reset_button = "Reset ## " + pair.first;
+			if (ImGui::Button(reset_button.c_str())) {
+				pair.second = "";
 			}
-			if (ImGui::Button("Datei laden")) {
-				fileinfo.LoadFile(current_project->GetSelectedFile());
-			}
+		}
+	}
+
+	static void ProjectWindow() {
+		int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_HorizontalScrollbar;
+		float screenW = static_cast<float>(GetScreenWidth());
+		float screenH = static_cast<float>(GetScreenHeight());
+		ImGui::SetNextWindowSize({ screenW, screenH - 22.0f });
+		ImGui::SetNextWindowPos({ 0.0f, 22.0f });
+		ImGui::Begin("Wareneingang ## Window", nullptr, flags);
+		DisplayMenuBar();
+		// Drawing Project selection
+		ImGui::BeginChild("Project selection window", {300.0f, 170.0f});
+		DisplayProjectSelection();
+		ImGui::EndChild();
+		// Drawing File selection
+		if (current_project->GetName() != "") {
+			ImGui::SameLine();
+			ImGui::BeginChild("Project file selection window", {500.0f, 170.0f});
+			DisplayFileSelection();
 			ImGui::EndChild();
+			// Drawing file settings
+			if (current_project->loadedFile.IsReady()) {
+				ImGui::SameLine();
+				ImGui::BeginChild("File settings window", { 500.0f, 170.0f });
+				DisplayFileSettings();
+				ImGui::EndChild();
+				// Diplay merging settings if mergefile is loaded
+				if (current_project->loadedFile.Settings->GetMergeFile().IsReady()) {
+					ImGui::BeginChild("Header merge settings window", { 700.0f, 250.0f });
+					ImGui::SeparatorText((char*)u8"Merge header wählen");
+					DisplayHeaderMergeSettings();
+					ImGui::EndChild();
+				}
+			}
 		}
 		// Drawing the data for testing
-		ImGui::Separator();
-		std::vector<RowInfo> &&data = fileinfo.GetData();
-		int x = 0;
-		for (RowInfo& row : data) {
-			//DisplayData(row, x, "horizontal-aboveheader");
-			DisplayData(row, x, "vertical-rightheader");
-			if (row.Changed())
-				fileinfo.SetRowData(row, x);
-			x++;
+		if (current_project->loadedFile.Settings) {
+			ImGui::Separator();
+			std::vector<RowInfo>&& data = current_project->loadedFile.GetData();
+			int x = 0;
+			for (RowInfo& row : data) {
+				//DisplayData(row, x, "horizontal-aboveheader");
+				DisplayData(row, x, "horizontal-aboveheader");
+				if (row.Changed())
+					current_project->loadedFile.SetRowData(row, x);
+				x++;
+			}
 		}
 		ImGui::End();
 	}
@@ -400,15 +502,12 @@ namespace ui {
 		MainMenu();
 		
 		switch (uiSettings.ui_mode) {
-		case UI_SELECTION:
-			UISelection();
-			break;
-		case UI_ASSAMBLY:
-			UIAssambly();
+		case UI_PROJECT_WINDOW:
+			ProjectWindow();
 			break;
 		case UI_NONE:
 		default:
-			uiSettings.ui_mode = UI_SELECTION;
+			uiSettings.ui_mode = UI_DEFAULT;
 			break;
 		}
 

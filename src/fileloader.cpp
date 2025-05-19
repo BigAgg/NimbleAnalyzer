@@ -35,6 +35,8 @@ static bool s_IsNumber(const std::string& input) {
 			}
 			else if (input[i] == '.' || input[i] == ',') {
 				dotcount++;
+				if (dotcount > 1)
+					return false;
 				continue;
 			}
 			else {
@@ -178,6 +180,8 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 
 
 void FileInfo::LoadFile(const std::string& filename) {
+	m_sheetData.clear();
+	m_rowinfo.clear();
 	m_sheetData = s_LoadExcelSheet(filename);
 	// Check if there is any data
 	if (m_sheetData.size() <= 0)
@@ -220,15 +224,22 @@ void FileInfo::LoadFile(const std::string& filename) {
 		if(dataSet)
 			m_rowinfo.push_back(rowinfo);
 	}
+	Settings = new FileSettings();
+	Settings->SetParentFile(this);
 	m_filename = filename;
 	m_isready = true;
 }
 
 void FileInfo::SaveFile() {
-
+	s_SaveExcelSheet(m_filename, m_sheetData, true);
 }
 
 void FileInfo::SaveFileAs(const std::string& filename){
+	s_SaveExcelSheet(filename, m_sheetData);
+}
+
+std::string FileInfo::GetFilename() const {
+	return m_filename;
 }
 
 std::pair<int, int> FileInfo::GetHeaderIndex(const std::string& header){
@@ -236,6 +247,14 @@ std::pair<int, int> FileInfo::GetHeaderIndex(const std::string& header){
 }
 
 void FileInfo::GetHeaderIndex(const std::string& header, int* x, int* y){
+}
+
+std::vector<std::string> FileInfo::GetHeaderNames() const {
+	std::vector<std::string> headernames;
+	for (auto& pair : m_headerinfo) {
+		headernames.push_back(pair.first);
+	}
+	return headernames;
 }
 
 RowInfo FileInfo::GetRowdata(const int rowIdx){
@@ -287,14 +306,11 @@ void RowInfo::UpdateData(const std::string& header, const std::string& newValue)
 }
 
 std::string RowInfo::GetData(const std::string& header) const{
-	auto it = std::find_if(m_rowinfo.begin(), m_rowinfo.end(),
-		[&header](const std::pair<std::string, std::string>& p) {
-			return p.first == header;
-		});
-	if (it == m_rowinfo.end()) {
-		return "";
+	for (auto& p : m_rowinfo) {
+		if (p.first == header)
+			return p.second;
 	}
-	return it->second;
+	return "";
 }
 
 std::vector<std::pair<std::string, std::string>> RowInfo::GetData(){
@@ -324,8 +340,106 @@ void FileSettings::AddHeaderSetting(const std::string& header) {
 		return;
 	}
 	it->first = header;
-	for (auto& b : it->second) {
-		b = false;
+	m_initbool(it->second, sizeof(FILE_HEADER_SETTING));
+}
+
+void FileSettings::SetMergeFile(const FileInfo otherFile) {
+	if (!m_parentFile) {
+		logging::logwarning("FILELOADER::FileSettings::SetMergeFile m_parentFile is currently not set!");
+		return;
+	}
+	if (!otherFile.IsReady()) {
+		logging::logwarning("FILELOADER::FileSettings::SetMergeFile Given File is not a valid file.\n%s", otherFile.GetFilename());
+		return;
+	}
+	m_mergefile = otherFile;
+	m_mergefileSet = true;
+}
+
+FileInfo FileSettings::GetMergeFile() const {
+	return m_mergefile;
+}
+
+void FileSettings::SetParentFile(FileInfo* parentFile) {
+	if (!parentFile) {
+		logging::logwarning("FILELOADER::FileSettings::SetParentFile Given File is a nullptr!");
+		return;
+	}
+	m_parentFile = parentFile;
+}
+
+bool FileSettings::IsMergeFileSet() const{
+	return m_mergefileSet;
+}
+
+void FileSettings::AddHeaderToMerge(const std::string& sourceHeader, const std::string& destHeader) {
+	if (!IsMergeFileSet()) {
+		logging::logwarning("FILELOADER::FileSettings::AddHeaderToMerge m_mergefile is not set yet!");
+		return;
+	}
+	if (!m_parentFile) {
+		logging::logwarning("FILELOADER::FileSettings::AddHeaderToMerge m_parentFile is not set yet!");
+		return;
+	}
+	for (auto& pair : m_mergeheaders) {
+		if (pair.first == sourceHeader) {
+			pair.second = destHeader;
+			return;
+		}
+	}
+	m_mergeheaders.push_back(std::make_pair(sourceHeader, destHeader));
+}
+
+void FileSettings::SetMergeHeaderIf(const std::string& sourceHeader, const std::string& destHeader) {
+	m_mergeif = std::make_pair(sourceHeader, destHeader);
+}
+
+void FileSettings::RemoveHeaderToMerge(const std::string& header) {
+	auto it = std::find_if(m_mergeheaders.begin(), m_mergeheaders.end(),
+		[&header](const std::pair<std::string, std::string>& p) {
+			return p.first == header;
+		});
+	if (it == m_mergeheaders.end()) {
+		return;
+	}
+	m_mergeheaders.erase(it);
+}
+
+void FileSettings::MergeFiles() {
+	logging::loginfo("FILELOADER::FileSettings::MergeFiles Merging files\n\t%s\n\t%s\n\t And Searching for header: %s to fill with %s", m_parentFile->GetFilename().c_str(), m_mergefile.GetFilename().c_str(), m_mergeif.first.c_str(), m_mergeif.second.c_str());
+	std::vector<RowInfo> &&data = m_parentFile->GetData();
+	std::vector<RowInfo> &&mergeData = m_mergefile.GetData();
+	int idx = -1;
+	for (auto& row : data) {
+		idx++;
+		std::string value = row.GetData(m_mergeif.first);
+		if (value == "")
+			continue;
+		for (auto& merge_row : mergeData) {
+			std::string merge_value = merge_row.GetData(m_mergeif.second);
+			if (merge_value == "")
+				continue;
+			if (merge_value != value)
+				continue;
+			logging::loginfo("Found the rowinfo to get values from!");
+			for (auto& pair : m_mergeheaders) {
+				std::string new_val = merge_row.GetData(pair.second);
+				if (new_val != "") {
+					logging::loginfo("FILELOADER::FileSettings::MergeFiles Updating: %s with %s", pair.first, new_val);
+					row.UpdateData(pair.first, new_val);
+				}
+			}
+			break;
+		}
+		if (row.Changed()) {
+			m_parentFile->SetRowData(row, idx);
+		}
+	}
+}
+
+void FileSettings::m_initbool(bool* container, size_t container_size) {
+	for (size_t x = 0; x < container_size; x++) {
+		container[x] = false;
 	}
 }
 

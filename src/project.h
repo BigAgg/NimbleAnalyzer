@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include "fileloader.h"
 
 class Project;
 
@@ -21,6 +22,8 @@ public:
 
 	void SelectFile(const std::string& path);
 	std::string GetSelectedFile() const;
+
+	FileInfo loadedFile;
 
 private:
 	std::string m_name = "";
