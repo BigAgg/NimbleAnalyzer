@@ -335,7 +335,7 @@ namespace ui {
 			ImGui::EndListBox();
 		}
 		if (ImGui::Button((char*)u8"Neue Datei Hinzufügen")) {
-			current_project->AddFilePath(OpenFileDialog("Excel Sheet", "xlsx"));
+			current_project->AddFilePath(OpenFileDialog("Excel Sheet", "xlsx,csv"));
 		}
 	}
 
@@ -343,7 +343,7 @@ namespace ui {
 		fs::path filepath = current_project->loadedFile.Settings->GetMergeFile().GetFilename();
 		ImGui::Text("Aktuelle Mergefile: %s", filepath.filename().string().c_str());
 		if (ImGui::Button("Neue Mergefile")) {
-			std::string filename = OpenFileDialog("Excel Sheet", "xlsx");
+			std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
 			if (filename != "") {
 				FileInfo mergefile;
 				mergefile.LoadFile(filename);

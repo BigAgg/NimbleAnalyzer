@@ -10,9 +10,38 @@ namespace fs = std::filesystem;
 // Function predefinitions
 static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string& filename);
 static void s_SaveExcelSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite = false, const std::string& sourcefile = "");
+static std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename);
+static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::vector<std::string>>& csvSheet, const bool overwrite = false, const std::string& sourcefile = "");
 static bool s_CheckFile(const std::string& filename);
 static bool s_IsNumber(const std::string& input);
 static bool s_IsInteger(const std::string& input);
+static std::pair<std::string, std::string> s_Splitlines(const std::string& input, const std::string& splitat);
+static bool s_StrContains(const std::string& input, const std::string& substring);
+void s_RemoveAllSubstrings(std::string& input, const std::string& toRemove);
+
+static bool s_StrContains(const std::string& input, const std::string& substring) {
+	return (input.find(substring) != std::string::npos);
+}
+
+static void s_RemoveAllSubstrings(std::string& input, const std::string& toRemove) {
+	size_t pos;
+	while ((pos = input.find(toRemove)) != std::string::npos) {
+		input.erase(pos, toRemove.length());
+	}
+}
+
+static std::pair<std::string, std::string> s_Splitlines(const std::string& input, const std::string& splitat) {
+	size_t pos = input.find(splitat);
+	if (pos == std::string::npos) {
+		logging::loginfo("No delimiter found: %s", input.c_str());
+		return { input, "" }; // No delimiter found
+	}
+
+	std::string left = input.substr(0, pos);
+	std::string right = input.substr(pos + splitat.length());
+
+	return { left, right };
+}
 
 static bool s_IsNumber(const std::string& input) {
 	try{
@@ -86,13 +115,70 @@ static bool s_CheckFile(const std::string& filename) {
 	return true;
 }
 
+static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite, const std::string& sourcefile) {
+}
+
+std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename) {
+	std::vector<std::vector<std::string>> sheetData;
+	// Converting filename to path
+	fs::path path = fs::u8path(filename);
+	// Checking if file exists
+	if (!fs::exists(path)) {
+		logging::logwarning("FILELOADER::s_LoadCSVSheet File does not exist: %s", filename.c_str());
+		return sheetData;
+	}
+	try {
+		std::ifstream file(path.wstring(), std::ios::binary);
+		if (!file) {
+			logging::logerror("FILELOADER:: s_LoadCSVSheet File is corrupted and could not be loaded into filestream: %s", filename.c_str());
+			return sheetData;
+		}
+		std::string line;
+		std::string separator = std::string(";");
+		// Next two lines are NEEDED!!!! because the separator string does not only contain ';'
+		separator.erase(0, separator.find_first_not_of(" \t\r\n"));
+		separator.erase(separator.find_last_not_of(" \t\r\n") + 1);
+		// Reading csv line by line
+		int x = 0;
+		while (std::getline(file, line)) {
+			s_RemoveAllSubstrings(line, "\"");
+			// first line often containes seperator
+			if (x == 0 && line.starts_with("sep=")) {
+				separator = s_Splitlines(line, "=").second;
+				// Next two lines are NEEDED!!!! because the separator string does not only contain ';'
+				separator.erase(0, separator.find_first_not_of(" \t\r\n"));
+				separator.erase(separator.find_last_not_of(" \t\r\n") + 1);
+				continue;
+			}
+			// Now generate the row
+			std::vector<std::string> row;
+			std::pair<std::string, std::string> values = s_Splitlines(line, separator);
+			while (s_StrContains(values.second, separator)) {
+				row.push_back(values.first);
+				values = s_Splitlines(values.second, separator);
+			}
+			sheetData.push_back(row);
+			x++;
+		}
+	}
+	catch (std::exception& e) {
+		logging::logerror("FILELOADER::s_LoadCSVSheet Could not load file: %s\nERROR: %s", filename.c_str(), e.what());
+		return std::vector<std::vector<std::string>>();
+	}
+	return sheetData;
+}
+
 static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string& filename) {
 	std::vector<std::vector<std::string>> sheetData;
 	// Converting filename to a path
 	fs::path path = fs::u8path(filename);
+	const std::string extension = path.filename().extension().string();
+	if (extension == ".csv" || extension == ".CSV") {
+		return s_LoadCSVSheet(filename);
+	}
 	// Checking if the file exists
 	if (!fs::exists(path)) {
-		logging::logwarning("FILELOADER::s_CheckFile File does not exist: %s", filename.c_str());
+		logging::logwarning("FILELOADER::s_LoadExcelSheet File does not exist: %s", filename.c_str());
 		return sheetData;
 	}
 	if (!s_CheckFile(path.string())) {
@@ -123,7 +209,6 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 		logging::logerror("FILELOADER::s_LoadExcelSheet Error loading file: %s", e.what());
 		sheetData.clear();
 	}
-	// Load the file with xlnt
 	return sheetData;
 }
 
