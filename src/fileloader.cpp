@@ -9,7 +9,7 @@ namespace fs = std::filesystem;
 
 // Function predefinitions
 static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string& filename);
-static void s_SaveExcelSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite = false);
+static void s_SaveExcelSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite = false, const std::string& sourcefile = "");
 static bool s_CheckFile(const std::string& filename);
 static bool s_IsNumber(const std::string& input);
 static bool s_IsInteger(const std::string& input);
@@ -127,16 +127,24 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 	return sheetData;
 }
 
-static void s_SaveExcelSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite) {
+static void s_SaveExcelSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite, const std::string& sourcefile) {
 	xlnt::workbook wb;
 	fs::path path = fs::u8path(filename);
+	fs::path sourcepath = fs::u8path(sourcefile);
 	if (!overwrite) {
 		if (!s_CheckFile(path.string())) {
 			logging::logwarning("FILELOADER::s_SaveExcelSheet filechecking failure for: %s", filename.c_str());
 			return;
 		}
-		fs::path to_load = path.string();
 		wb.load(path.wstring());
+	}
+	if (sourcefile != "") {
+		if (!s_CheckFile(path.string())) {
+			logging::logwarning("FILELOADER::s_SaveExcelSheet filecheking failure for sourcefile: %s", sourcefile.c_str());
+		}
+		else {
+			wb.load(sourcepath.wstring());
+		}
 	}
 	xlnt::worksheet ws = wb.active_sheet();
 	for (int x = 0; x < excelSheet.size(); x++) {
@@ -165,12 +173,15 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 				continue;
 			}
 			// Asign cell float value
+			// NOT WORKING CORRECTLY DUE TO PRECISION SHIT!!!
+			/*
 			if (s_IsNumber(value)) {
 				replace(value.begin(), value.end(), ',', '.');
-				float number = std::stof(value);
-				dest_cell.value(number);
+				std::string precision = "";
+				float number = s_StringToFloat(value, &precision);
+				dest_cell.value(value);
 				continue;
-			}
+			}*/
 			// Asign cell value string
 			dest_cell.value(value);
 		}
@@ -178,6 +189,20 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 	wb.save(filename);
 }
 
+void FileInfo::Unload() {
+	if (!IsReady())
+		return;
+	for (auto& rinfo : m_rowinfo) {
+		rinfo.Unload();
+	}
+	m_rowinfo.clear();
+	Settings->Unload();
+	m_sheetData.clear();
+	m_headerinfo.clear();
+	m_filename = "";
+	m_isready = false;
+	m_headeridx = -1;
+}
 
 void FileInfo::LoadFile(const std::string& filename) {
 	m_sheetData.clear();
@@ -203,6 +228,7 @@ void FileInfo::LoadFile(const std::string& filename) {
 		return;
 	}
 	// Processing headerinfo
+	m_headeridx = headerIndex;
 	for (int y = 1; y < m_sheetData[headerIndex].size(); y++) {
 		std::pair<int, int> index = std::make_pair(headerIndex, y);
 		m_headerinfo.push_back(std::make_pair(m_sheetData[headerIndex][y], index));
@@ -238,15 +264,79 @@ void FileInfo::SaveFileAs(const std::string& filename){
 	s_SaveExcelSheet(filename, m_sheetData);
 }
 
+void FileInfo::SaveFileAs(const std::string& sourcefile, const std::string& destfile) {
+	if (!IsReady()) {
+		logging::logwarning("FILELOADER::FileInfo::SaveFileAs File was never loaded correctly. No Data to save");
+		return;
+	}
+	fs::path source_path = fs::u8path(sourcefile);
+	fs::path dest_path = fs::u8path(destfile);
+
+	CreateSheetData();
+
+	s_SaveExcelSheet(destfile, m_sheetData, true, sourcefile);
+}
+
+void FileInfo::CreateSheetData() {
+	if (m_rowinfo.size() <= 0) {
+		return;
+	}
+	if (m_sheetData.size() <= 0) {
+		return;
+	}
+	size_t header_size = m_sheetData[m_headeridx].size();
+	for (int x = 0; x < m_rowinfo.size(); x++) {
+		const RowInfo& ri = m_rowinfo[x];
+		auto&& rdata = ri.GetData();
+		if (x + m_headeridx + 1 < m_sheetData.size()) {
+			for (auto& pair : rdata) {
+				int header_x = -1, header_y = -1;
+				GetHeaderIndex(pair.first, &header_x, &header_y);
+				if (header_x != m_headeridx)
+					continue;
+				if (header_y <= 0)
+					continue;
+				header_x += x + 1;
+				m_sheetData[header_x][header_y] = pair.second;
+			}
+		}
+		else {
+			std::vector<std::string> rowinfo(m_headerinfo.size() + 1);
+			for (auto& pair : rdata) {
+				int header_x = -1, header_y = -1;
+				GetHeaderIndex(pair.first, &header_x, &header_y);
+				if (header_x != m_headeridx)
+					continue;
+				if (header_y <= 0)
+					continue;
+				rowinfo[header_y] = pair.second;
+			}
+			m_sheetData.push_back(rowinfo);
+		}
+	}
+}
+
 std::string FileInfo::GetFilename() const {
 	return m_filename;
 }
 
-std::pair<int, int> FileInfo::GetHeaderIndex(const std::string& header){
-	return std::pair<int, int>();
+std::pair<int, int> FileInfo::GetHeaderIndex(const std::string& header) {
+	for (auto&& pair : m_headerinfo) {
+		if (pair.first == header) {
+			return pair.second;
+		}
+	}
+	return std::pair<int, int>(-1, -1);
 }
 
-void FileInfo::GetHeaderIndex(const std::string& header, int* x, int* y){
+void FileInfo::GetHeaderIndex(const std::string& header, int* x, int* y) {
+	for (auto&& pair : m_headerinfo) {
+		if (pair.first == header) {
+			*x = pair.second.first;
+			*y = pair.second.second;
+			return;
+		}
+	}
 }
 
 std::vector<std::string> FileInfo::GetHeaderNames() const {
@@ -265,6 +355,11 @@ RowInfo FileInfo::GetRowdata(const int rowIdx){
 
 std::vector<RowInfo> FileInfo::GetData() {
 	return m_rowinfo;
+}
+
+void RowInfo::Unload() {
+	m_rowinfo.clear();
+	m_changed = false;
 }
 
 void FileInfo::SetRowData(const RowInfo& rowinfo, const int rowIdx){
@@ -313,7 +408,7 @@ std::string RowInfo::GetData(const std::string& header) const{
 	return "";
 }
 
-std::vector<std::pair<std::string, std::string>> RowInfo::GetData(){
+std::vector<std::pair<std::string, std::string>> RowInfo::GetData() const{
 	return m_rowinfo;
 }
 
@@ -331,16 +426,13 @@ void RowInfo::ResetChanged() {
 	m_changed = false;
 }
 
-void FileSettings::AddHeaderSetting(const std::string& header) {
-	auto it = std::find_if(m_headersettings.begin(), m_headersettings.end(),
-		[&header](const std::pair<std::string, bool>& p) {
-			return p.first == header;
-		});
-	if (it == m_headersettings.end()) {
-		return;
-	}
-	it->first = header;
-	m_initbool(it->second, sizeof(FILE_HEADER_SETTING));
+void FileSettings::Unload() {
+	m_parentFile = nullptr;
+	if(m_mergefileSet)
+		m_mergefile.Unload();
+	m_mergefileSet = false;
+	m_mergeheaders.clear();
+	m_mergeif = {};
 }
 
 void FileSettings::SetMergeFile(const FileInfo otherFile) {
@@ -373,7 +465,7 @@ bool FileSettings::IsMergeFileSet() const{
 }
 
 void FileSettings::AddHeaderToMerge(const std::string& sourceHeader, const std::string& destHeader) {
-	if (!IsMergeFileSet()) {
+	if (destHeader != "" && !IsMergeFileSet()) {
 		logging::logwarning("FILELOADER::FileSettings::AddHeaderToMerge m_mergefile is not set yet!");
 		return;
 	}
@@ -405,6 +497,15 @@ void FileSettings::RemoveHeaderToMerge(const std::string& header) {
 	m_mergeheaders.erase(it);
 }
 
+std::pair<std::string, std::string> FileSettings::GetMergeIf() {
+	return m_mergeif;
+}
+
+
+std::vector<std::pair<std::string, std::string>> FileSettings::GetMergeHeaders() {
+	return m_mergeheaders;
+}
+
 void FileSettings::MergeFiles() {
 	logging::loginfo("FILELOADER::FileSettings::MergeFiles Merging files\n\t%s\n\t%s\n\t And Searching for header: %s to fill with %s", m_parentFile->GetFilename().c_str(), m_mergefile.GetFilename().c_str(), m_mergeif.first.c_str(), m_mergeif.second.c_str());
 	std::vector<RowInfo> &&data = m_parentFile->GetData();
@@ -421,11 +522,9 @@ void FileSettings::MergeFiles() {
 				continue;
 			if (merge_value != value)
 				continue;
-			logging::loginfo("Found the rowinfo to get values from!");
 			for (auto& pair : m_mergeheaders) {
 				std::string new_val = merge_row.GetData(pair.second);
 				if (new_val != "") {
-					logging::loginfo("FILELOADER::FileSettings::MergeFiles Updating: %s with %s", pair.first, new_val);
 					row.UpdateData(pair.first, new_val);
 				}
 			}
@@ -437,9 +536,11 @@ void FileSettings::MergeFiles() {
 	}
 }
 
-void FileSettings::m_initbool(bool* container, size_t container_size) {
-	for (size_t x = 0; x < container_size; x++) {
-		container[x] = false;
-	}
+void FileSettings::SetMergeFolder(const std::string& folder) {
+	m_mergefolder = folder;
+}
+
+std::string FileSettings::GetMergeFolder() const{
+	return m_mergefolder;
 }
 

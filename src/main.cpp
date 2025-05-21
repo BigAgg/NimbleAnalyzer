@@ -2,7 +2,6 @@
 #include "logging.h"
 
 int main(int argc, char *argv[]) {
-  logging::startlogging("", "run.log");
   if (!engine::Init())
     return engine::GetErrorcode();
   if (!ui::Init())
@@ -15,6 +14,5 @@ int main(int argc, char *argv[]) {
   }
 	ui::Shutdown();
 	engine::Shutdown();
-  logging::stoplogging();
   return 0;
 }

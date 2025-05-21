@@ -53,3 +53,11 @@ std::string Project::GetSelectedFile() const {
 	return m_currentFile;
 }
 
+void Project::Unload() {
+	if (loadedFile.IsReady())
+		loadedFile.Unload();
+	m_name = "";
+	m_parent = "";
+	m_currentFile = "";
+	m_paths.clear();
+}

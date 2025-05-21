@@ -23,6 +23,8 @@ public:
 	void SelectFile(const std::string& path);
 	std::string GetSelectedFile() const;
 
+	void Unload();
+
 	FileInfo loadedFile;
 
 private:
