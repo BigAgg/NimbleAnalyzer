@@ -115,9 +115,6 @@ static bool s_CheckFile(const std::string& filename) {
 	return true;
 }
 
-static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite, const std::string& sourcefile) {
-}
-
 std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename) {
 	std::vector<std::vector<std::string>> sheetData;
 	// Converting filename to path
@@ -212,10 +209,48 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 	return sheetData;
 }
 
-static void s_SaveExcelSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite, const std::string& sourcefile) {
-	xlnt::workbook wb;
+static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite, const std::string& sourcefile) {
 	fs::path path = fs::u8path(filename);
+	std::ofstream file(path.wstring(), std::ios::binary);
+	if (!file) {
+		logging::logwarning("FILELOADER::s_SaveCSVSheet Could not open file: %s", filename.c_str());
+		return;
+	}
+	file << "sep=;" << "\n";
+	for (auto&& row : excelSheet) {
+		std::string outstr = "";
+		for (int x = 0; x < row.size(); x++) {
+			const std::string val = row[x];
+			if (x == row.size() - 1) {
+				if (s_IsNumber(val) || s_IsInteger(val)) {
+					outstr += val;
+				}
+				else {
+					outstr += "\"" + val + "\"";
+				}
+			}
+			else {
+				if (s_IsNumber(val) || s_IsInteger(val)) {
+					outstr += val + ";";
+				}
+				else {
+					outstr += "\"" + val + "\";";
+				}
+			}
+		}
+		file << outstr << "\n";
+	}
+}
+
+static void s_SaveExcelSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite, const std::string& sourcefile) {
+	fs::path path = fs::u8path(filename);
+	const std::string extension = path.filename().extension().string();
+	if (extension == ".csv" || extension == ".CSV") {
+		s_SaveCSVSheet(filename, excelSheet, overwrite, sourcefile);
+		return;
+	}
 	fs::path sourcepath = fs::u8path(sourcefile);
+	xlnt::workbook wb;
 	if (!overwrite) {
 		if (!s_CheckFile(path.string())) {
 			logging::logwarning("FILELOADER::s_SaveExcelSheet filechecking failure for: %s", filename.c_str());

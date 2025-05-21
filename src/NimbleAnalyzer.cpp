@@ -337,6 +337,11 @@ namespace ui {
 		if (ImGui::Button((char*)u8"Neue Datei Hinzufügen")) {
 			current_project->AddFilePath(OpenFileDialog("Excel Sheet", "xlsx,csv"));
 		}
+		if(ImGui::Button("Save file as")){
+			const std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
+			if (filename != "")
+				current_project->loadedFile.SaveFileAs(filename);
+		}
 	}
 
 	static void DisplayFileSettings() {
