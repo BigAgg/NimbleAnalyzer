@@ -48,10 +48,19 @@ source_group("Header Files" FILES ${HEADER_FILES})
 
 # Building target 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES})
-if(MSVC)
+# Setup buildflags
+if(WIN32)
+  if(MSVC)
+    # For Visual Studio (MSVC)
     set_target_properties(${PROJECT_NAME} PROPERTIES
         LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS"
     )
+  else()
+    # For GCC/MinGW on Windows
+    target_link_options(${PROJECT_NAME} PRIVATE
+      "$<$<CONFIG:Release>:-mwindows>"
+    )
+  endif()
 endif()
 target_include_directories(${PROJECT_NAME} PUBLIC src)
 target_link_libraries(${PROJECT_NAME} PRIVATE raylib ImGui rlImGui nfd xlnt)

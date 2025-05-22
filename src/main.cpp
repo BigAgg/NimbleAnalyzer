@@ -1,8 +1,10 @@
 #include "NimbleAnalyzer.h"
 #include "logging.h"
-#include <Windows.h>
 
 int main(int argc, char *argv[]) {
+#ifdef NDEBUG
+  logging::startlogging("", "run.log");
+#endif
   if (!engine::Init())
     return engine::GetErrorcode();
   if (!ui::Init())
@@ -15,9 +17,17 @@ int main(int argc, char *argv[]) {
   }
 	ui::Shutdown();
 	engine::Shutdown();
+#ifdef NDEBUG
+  logging::stoplogging();
+#endif
   return 0;
 }
 
+#ifdef _MSC_VER
+#ifdef NDEBUG
+#include <Windows.h>
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
   return main(__argc, __argv);
 }
+#endif
+#endif
