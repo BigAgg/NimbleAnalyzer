@@ -164,6 +164,8 @@ namespace ui {
 		return errorcode;
 	}
 
+	static std::vector<std::string> s_hiddenHeaders;
+
 	bool Init() {
 		// Check if the engine is initialized
 		if (engine::GetErrorcode() != engine::ENGINE_NONE_ERROR) {
@@ -297,6 +299,7 @@ namespace ui {
 				if (ImGui::Selectable(buff, &selected)) {
 					selected_project = x;
 					current_project = &projects[x];
+					s_hiddenHeaders.clear();
 				}
 				if (selected)
 					ImGui::SetItemDefaultFocus();
@@ -328,6 +331,7 @@ namespace ui {
 					current_project->SelectFile(file);
 					current_project->loadedFile.Unload();
 					current_project->loadedFile.LoadFile(file);
+					s_hiddenHeaders.clear();
 				}
 				if (selected)
 					ImGui::SetItemDefaultFocus();
@@ -337,14 +341,33 @@ namespace ui {
 		if (ImGui::Button((char*)u8"Neue Datei Hinzufügen")) {
 			current_project->AddFilePath(OpenFileDialog("Excel Sheet", "xlsx,csv"));
 		}
-		if(ImGui::Button("Save file as")){
+		if(ImGui::Button("Datei speichern als")){
 			const std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
 			if (filename != "")
-				current_project->loadedFile.SaveFileAs(filename);
+				current_project->loadedFile.SaveFileAs(current_project->loadedFile.GetFilename(), filename);
 		}
 	}
 
 	static void DisplayFileSettings() {
+		// Select mergefolder
+		fs::path mergefolderpath = current_project->loadedFile.Settings->GetMergeFolder();
+		ImGui::Text("Aktueller Mergefolder: %s", mergefolderpath.string().c_str());
+		if (ImGui::Button("Neuer Mergefolder")) {
+			std::string folder = OpenDirectoryDialog();
+			if (folder != "") {
+				current_project->loadedFile.Settings->SetMergeFolder(folder);
+			}
+		}
+		if (current_project->loadedFile.Settings->IsMergeFolderSet()) {
+			ImGui::SameLine();
+			if (ImGui::Button((char*)u8"Wähle template")) {
+				std::string templatefile = OpenFileDialog("Excel Sheet", "xlsx,csv");
+				if (templatefile != "") {
+					current_project->loadedFile.Settings->SetMergeFolderTemplate(templatefile);
+				}
+			}
+		}
+		// Select single mergefile
 		fs::path filepath = current_project->loadedFile.Settings->GetMergeFile().GetFilename();
 		ImGui::Text("Aktuelle Mergefile: %s", filepath.filename().string().c_str());
 		if (ImGui::Button("Neue Mergefile")) {
@@ -390,6 +413,7 @@ namespace ui {
 				}
 			}
 			ImGui::SameLine();
+			ImGui::SetNextItemWidth(300.0f);
 			if (ImGui::BeginCombo(header.c_str(), setHeader.second.c_str())) {
 				for (auto& mergeheader : mergeheaders) {
 					bool selected = (mergeheader == setHeader.second);
@@ -407,6 +431,39 @@ namespace ui {
 			std::string reset_button = "Reset ## " + header;
 			if (ImGui::Button(reset_button.c_str())) {
 				current_project->loadedFile.Settings->RemoveHeaderToMerge(header);
+			}
+		}
+	}
+
+	static void DisplayHeaderSettings() {
+		auto&& headers = current_project->loadedFile.GetHeaderNames();
+		for (auto&& header : headers) {
+			if (header == "")
+				continue;
+			bool isSet = false;
+			for (auto&& hiddenHeader : s_hiddenHeaders) {
+				if (hiddenHeader == header) {
+					isSet = true;
+				}
+			}
+			if (ImGui::Checkbox(header.c_str(), &isSet)) {
+				if (isSet) {
+					bool add = true;
+					for (auto&& hiddenHeader : s_hiddenHeaders) {
+						if (hiddenHeader == header) {
+							add = false;
+							break;
+						}
+					}
+					if (add)
+						s_hiddenHeaders.push_back(header);
+				}
+				else {
+					auto it = std::find(s_hiddenHeaders.begin(), s_hiddenHeaders.end(), header);
+					if (it != s_hiddenHeaders.end()) {
+						s_hiddenHeaders.erase(it);
+					}
+				}
 			}
 		}
 	}
@@ -435,7 +492,12 @@ namespace ui {
 				ImGui::BeginChild("File settings window", { 500.0f, 170.0f });
 				DisplayFileSettings();
 				ImGui::EndChild();
+				ImGui::BeginChild("Header settings", { 300.0f, 250.0f });
+				ImGui::SeparatorText("Werte ausblenden");
+				DisplayHeaderSettings();
+				ImGui::EndChild();
 				// Diplay merging settings if mergefile is loaded
+				ImGui::SameLine();
 				if (current_project->loadedFile.Settings->GetMergeFile().IsReady()) {
 					ImGui::BeginChild("Header merge settings window", { 700.0f, 250.0f });
 					ImGui::SeparatorText((char*)u8"Merge header wählen");
@@ -451,7 +513,7 @@ namespace ui {
 			int x = 0;
 			for (RowInfo& row : data) {
 				//DisplayData(row, x, "horizontal-aboveheader");
-				DisplayData(row, x, "horizontal-aboveheader");
+				DisplayData(row, x, "horizontal-aboveheader", s_hiddenHeaders);
 				if (row.Changed())
 					current_project->loadedFile.SetRowData(row, x);
 				x++;

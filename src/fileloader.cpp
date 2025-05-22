@@ -111,7 +111,6 @@ static bool s_CheckFile(const std::string& filename) {
 		logging::logwarning("FILELOADER::s_CheckFile Error Checking File: %s", e.what());
 		return false;
 	}
-	logging::loginfo("FILELOADER::s_CheckFile File to load is intact: %s", filename);
 	return true;
 }
 
@@ -139,6 +138,9 @@ std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename
 		int x = 0;
 		while (std::getline(file, line)) {
 			s_RemoveAllSubstrings(line, "\"");
+			s_RemoveAllSubstrings(line, "\n");
+			s_RemoveAllSubstrings(line, "\t");
+			s_RemoveAllSubstrings(line, "\r");
 			// first line often containes seperator
 			if (x == 0 && line.starts_with("sep=")) {
 				separator = s_Splitlines(line, "=").second;
@@ -154,6 +156,8 @@ std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename
 				row.push_back(values.first);
 				values = s_Splitlines(values.second, separator);
 			}
+			row.push_back(values.first);
+			row.push_back(values.second);
 			sheetData.push_back(row);
 			x++;
 		}
@@ -218,27 +222,27 @@ static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::v
 	}
 	file << "sep=;" << "\n";
 	for (auto&& row : excelSheet) {
-		std::string outstr = "";
 		for (int x = 0; x < row.size(); x++) {
-			const std::string val = row[x];
-			if (x == row.size() - 1) {
-				if (s_IsNumber(val) || s_IsInteger(val)) {
-					outstr += val;
+			std::string val = row[x];
+			if (x == 0) {
+				if (s_IsInteger(val) || s_IsNumber(val)) {
+					file << val;
 				}
 				else {
-					outstr += "\"" + val + "\"";
+					file << '"' << val << '"';
 				}
 			}
 			else {
-				if (s_IsNumber(val) || s_IsInteger(val)) {
-					outstr += val + ";";
+				file << ';';
+				if (s_IsInteger(val) || s_IsNumber(val)) {
+					file << val;
 				}
 				else {
-					outstr += "\"" + val + "\";";
+					file << '"' << val << '"';
 				}
 			}
 		}
-		file << outstr << "\n";
+		file << '\n';
 	}
 }
 
@@ -351,7 +355,9 @@ void FileInfo::LoadFile(const std::string& filename) {
 	m_headeridx = headerIndex;
 	for (int y = 1; y < m_sheetData[headerIndex].size(); y++) {
 		std::pair<int, int> index = std::make_pair(headerIndex, y);
-		m_headerinfo.push_back(std::make_pair(m_sheetData[headerIndex][y], index));
+		std::string header = m_sheetData[headerIndex][y];
+		logging::loginfo("header: %s", header.c_str());
+		m_headerinfo.push_back(std::make_pair(header, index));
 	}
 	// Processing RowInfo
 	for (int x = headerIndex + 1; x < m_sheetData.size(); x++) {
@@ -359,7 +365,7 @@ void FileInfo::LoadFile(const std::string& filename) {
 		RowInfo rowinfo;
 		bool dataSet = false;
 		for (int y = 1; y < row.size(); y++) {
-			const std::string& header = m_sheetData[headerIndex][y];
+			const std::string& header = m_headerinfo[y-1].first;
 			if (header == "")
 				continue;
 			const std::string& value = m_sheetData[x][y];
@@ -369,6 +375,9 @@ void FileInfo::LoadFile(const std::string& filename) {
 		}
 		if(dataSet)
 			m_rowinfo.push_back(rowinfo);
+		else {
+			break;
+		}
 	}
 	Settings = new FileSettings();
 	Settings->SetParentFile(this);
@@ -553,6 +562,11 @@ void FileSettings::Unload() {
 	m_mergefileSet = false;
 	m_mergeheaders.clear();
 	m_mergeif = {};
+	if (m_mergefolderfile.IsReady())
+		m_mergefolderfile.Unload();
+	m_mergefolder = "";
+	m_mergefolderSet = false;
+	m_mergefolderpaths.clear();
 }
 
 void FileSettings::SetMergeFile(const FileInfo otherFile) {
@@ -617,12 +631,12 @@ void FileSettings::RemoveHeaderToMerge(const std::string& header) {
 	m_mergeheaders.erase(it);
 }
 
-std::pair<std::string, std::string> FileSettings::GetMergeIf() {
+std::pair<std::string, std::string> FileSettings::GetMergeIf() const{
 	return m_mergeif;
 }
 
 
-std::vector<std::pair<std::string, std::string>> FileSettings::GetMergeHeaders() {
+std::vector<std::pair<std::string, std::string>> FileSettings::GetMergeHeaders() const{
 	return m_mergeheaders;
 }
 
@@ -657,10 +671,101 @@ void FileSettings::MergeFiles() {
 }
 
 void FileSettings::SetMergeFolder(const std::string& folder) {
+	fs::path path = fs::u8path(folder);
+
+	try {
+		if (!fs::exists(path)) {
+			logging::loginfo("FILELOADER::FileSettings::SetMergeFolder Filepath is not valid: %s", folder);
+			return;
+		}
+		for (const auto& entry : fs::directory_iterator(path)) {
+			if (entry.is_regular_file()) {
+				m_mergefolderpaths.push_back(entry.path().string());
+			}
+		}
+	}
+	catch (const fs::filesystem_error& e) {
+		logging::logerror("FIELELOADER::FileSettings::SetMergeFolder Filesystem error: \n%s", e.what());
+		return;
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Other error: " << e.what() << '\n';
+		logging::logerror("FILELOADER::FileSettings::SetMergeFolder Error: \n%s", e.what());
+		return;
+	}
 	m_mergefolder = folder;
+	m_mergefolderSet = true;
 }
 
 std::string FileSettings::GetMergeFolder() const{
 	return m_mergefolder;
 }
 
+bool FileSettings::IsMergeFolderSet() const{
+	return m_mergefolderSet;
+}
+
+std::vector<std::string> FileSettings::GetMergeFolderPaths() const {
+	return m_mergefolderpaths;
+}
+
+void FileSettings::SetMergeFolderTemplate(const std::string& filepath) {
+	if (m_mergefolderfile.IsReady())
+		m_mergefolderfile.Unload();
+	m_mergefolderfile.LoadFile(filepath);
+	if (!m_mergefolderfile.IsReady()) {
+		logging::logwarning("FILELOADER::FileSettings::SetMergeFolderTemplate could not load file properly: %s", filepath.c_str());
+		m_mergefolderfile.Unload();
+		m_mergefolderfile = FileInfo();
+		return;
+	}
+	m_mergefolderfileSet = true;
+}
+
+FileInfo FileSettings::GetMergeFolderTemplate() const{
+	return m_mergefolderfile;
+}
+
+bool FileSettings::IsMergeFolderTemplate() const{
+	return m_mergefolderfileSet;
+}
+
+void FileSettings::AddFolderHeaderToMerge(const std::string& sourceHeader, const std::string& destHeader) {
+	if (destHeader != "" && !IsMergeFileSet()) {
+		logging::logwarning("FILELOADER::FileSettings::AddHeaderToMerge m_mergefile is not set yet!");
+		return;
+	}
+	if (!m_parentFile) {
+		logging::logwarning("FILELOADER::FileSettings::AddHeaderToMerge m_parentFile is not set yet!");
+		return;
+	}
+	for (auto& pair : m_mergeheadersfolder) {
+		if (pair.first == sourceHeader) {
+			pair.second = destHeader;
+			return;
+		}
+	}
+	m_mergeheadersfolder.push_back(std::make_pair(sourceHeader, destHeader));
+}
+
+void FileSettings::SetMergeFolderHeaderIf(const std::string& sourceHeader, const std::string& destHeader) {
+	m_mergefolderif = std::make_pair(sourceHeader, destHeader);
+}
+
+void FileSettings::RemoveFolderHeaderToMerge(const std::string& header) {
+	auto it = std::find_if(m_mergeheadersfolder.begin(), m_mergeheadersfolder.end(),
+		[&header](const std::pair<std::string, std::string>& p) {
+			return p.first == header;
+		});
+	if (it == m_mergeheadersfolder.end()) {
+		return;
+	}
+	m_mergeheadersfolder.erase(it);
+}
+
+std::pair<std::string, std::string> FileSettings::GetMergeFolderIf() const {
+	return m_mergefolderif;
+}
+std::vector<std::pair<std::string, std::string>> FileSettings::GetMergeFolderHeaders() const {
+	return m_mergeheadersfolder;
+}

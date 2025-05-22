@@ -15,10 +15,9 @@ inline std::string OpenDirectoryDialog() {
 	nfdpickfolderu8args_t args = { 0 };
 	//nfdresult_t result = NFD_OpenDialogU8_With(&outPath, &args);
 	nfdresult_t result = NFD_PickFolderU8_With(&outPath, &args);
-	fs::path outStr;
+	std::string outStr;
 	if (result == NFD_OKAY) {
 		outStr = std::string(outPath);
-		puts(outPath);
 		NFD_FreePathU8(outPath);
 	}
 	else if (result == NFD_CANCEL) {
@@ -27,8 +26,13 @@ inline std::string OpenDirectoryDialog() {
 	else {
 		outStr = "";
 	}
-	return outStr.string();
 	NFD_Quit();
+	for (char& c : outStr) {
+		if (c == '\\') {
+			c = '/';
+		}
+	}
+	return outStr;
 }
 
 inline std::string OpenFileDialog(const std::string& filterName, const std::string& fileEndings) {
