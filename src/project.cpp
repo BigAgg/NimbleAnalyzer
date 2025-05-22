@@ -27,7 +27,13 @@ void Project::AddFilePath(const std::string& path){
 }
 
 void Project::RemoveFilePath(const std::string& path){
+	if (path == "")
+		return;
 	m_paths.erase(std::find(m_paths.begin(), m_paths.end(), path));
+	if (path == m_currentFile) {
+		m_currentFile = "";
+		loadedFile.Unload();
+	}
 }
 
 std::vector<std::string> Project::GetFilePaths() const{

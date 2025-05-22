@@ -341,6 +341,10 @@ namespace ui {
 		if (ImGui::Button((char*)u8"Neue Datei Hinzufügen")) {
 			current_project->AddFilePath(OpenFileDialog("Excel Sheet", "xlsx,csv"));
 		}
+		ImGui::SameLine();
+		if (ImGui::Button("Datei entfernen")) {
+			current_project->RemoveFilePath(current_project->GetSelectedFile());
+		}
 		if(ImGui::Button("Datei speichern als")){
 			const std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
 			if (filename != "")
@@ -468,6 +472,59 @@ namespace ui {
 		}
 	}
 
+	static void DisplayHeaderMergeFolderSettings() {
+		if (ImGui::Button("Daten Mergen")) {
+			current_project->loadedFile.Settings->MergeFiles();
+		}
+
+		auto headers = current_project->loadedFile.GetHeaderNames();
+		auto mergeheaders = current_project->loadedFile.Settings->GetMergeFolderTemplate().GetHeaderNames();
+		auto setmergeheaders = current_project->loadedFile.Settings->GetMergeFolderHeaders();
+		auto headerif = current_project->loadedFile.Settings->GetMergeFolderIf();
+
+		for (auto& header : headers) {
+			if (header == "")
+				continue;
+			std::pair<std::string, std::string> setHeader = { "", "" };
+			for (auto& pair : setmergeheaders) {
+				if (pair.first == header) {
+					setHeader = pair;
+				}
+			}
+			std::string label = "## Datensuche ##" + header;
+			bool searchif = (header == headerif.first);
+			if (ImGui::Checkbox(label.c_str(), &searchif)) {
+				if (searchif) {
+					setHeader.first = header;
+					current_project->loadedFile.Settings->SetMergeFolderHeaderIf(setHeader.first, setHeader.second);
+				}
+				else {
+					current_project->loadedFile.Settings->SetMergeFolderHeaderIf("", "");
+				}
+			}
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(300.0f);
+			if (ImGui::BeginCombo(header.c_str(), setHeader.second.c_str())) {
+				for (auto& mergeheader : mergeheaders) {
+					bool selected = (mergeheader == setHeader.second);
+					if (ImGui::Selectable(mergeheader.c_str(), &selected)) {
+						current_project->loadedFile.Settings->AddFolderHeaderToMerge(header, mergeheader);
+						if (header == headerif.first)
+							current_project->loadedFile.Settings->SetMergeFolderHeaderIf(header, mergeheader);
+					}
+					if (selected)
+						ImGui::SetItemDefaultFocus();
+				}
+				ImGui::EndCombo();
+			}
+			ImGui::SameLine();
+			std::string reset_button = "Reset ## " + header;
+			if (ImGui::Button(reset_button.c_str())) {
+				current_project->loadedFile.Settings->RemoveFolderHeaderToMerge(header);
+			}
+		}
+	}
+
 	static void ProjectWindow() {
 		int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_HorizontalScrollbar;
 		float screenW = static_cast<float>(GetScreenWidth());
@@ -497,11 +554,18 @@ namespace ui {
 				DisplayHeaderSettings();
 				ImGui::EndChild();
 				// Diplay merging settings if mergefile is loaded
-				ImGui::SameLine();
 				if (current_project->loadedFile.Settings->GetMergeFile().IsReady()) {
+					ImGui::SameLine();
 					ImGui::BeginChild("Header merge settings window", { 700.0f, 250.0f });
 					ImGui::SeparatorText((char*)u8"Merge header wählen");
 					DisplayHeaderMergeSettings();
+					ImGui::EndChild();
+				}
+				if (current_project->loadedFile.Settings->IsMergeFolderSet()
+					&& current_project->loadedFile.Settings->GetMergeFolderTemplate().IsReady()) {
+					ImGui::SameLine();
+					ImGui::BeginChild("Header folder merge settings window", { 700, 250.0f });
+					DisplayHeaderMergeFolderSettings();
 					ImGui::EndChild();
 				}
 			}

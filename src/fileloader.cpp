@@ -329,6 +329,8 @@ void FileInfo::Unload() {
 }
 
 void FileInfo::LoadFile(const std::string& filename) {
+	if (IsReady())
+		Unload();
 	m_sheetData.clear();
 	m_rowinfo.clear();
 	m_sheetData = s_LoadExcelSheet(filename);
@@ -356,7 +358,7 @@ void FileInfo::LoadFile(const std::string& filename) {
 	for (int y = 1; y < m_sheetData[headerIndex].size(); y++) {
 		std::pair<int, int> index = std::make_pair(headerIndex, y);
 		std::string header = m_sheetData[headerIndex][y];
-		logging::loginfo("header: %s", header.c_str());
+		header += " ##" + std::to_string(m_headerinfo.size());
 		m_headerinfo.push_back(std::make_pair(header, index));
 	}
 	// Processing RowInfo
@@ -710,6 +712,9 @@ std::vector<std::string> FileSettings::GetMergeFolderPaths() const {
 }
 
 void FileSettings::SetMergeFolderTemplate(const std::string& filepath) {
+	if (!m_parentFile) {
+		logging::logwarning("FILELOADER::FileSettings::SetMergeFolderTemplate m_parentFile is not set yet!");
+	}
 	if (m_mergefolderfile.IsReady())
 		m_mergefolderfile.Unload();
 	m_mergefolderfile.LoadFile(filepath);
@@ -731,8 +736,8 @@ bool FileSettings::IsMergeFolderTemplate() const{
 }
 
 void FileSettings::AddFolderHeaderToMerge(const std::string& sourceHeader, const std::string& destHeader) {
-	if (destHeader != "" && !IsMergeFileSet()) {
-		logging::logwarning("FILELOADER::FileSettings::AddHeaderToMerge m_mergefile is not set yet!");
+	if (destHeader != "" && !IsMergeFolderTemplate()) {
+		logging::logwarning("FILELOADER::FileSettings::AddHeaderToMerge m_mergefoldertemplate is not set yet!");
 		return;
 	}
 	if (!m_parentFile) {
