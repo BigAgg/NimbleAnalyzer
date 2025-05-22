@@ -643,6 +643,44 @@ std::vector<std::pair<std::string, std::string>> FileSettings::GetMergeHeaders()
 }
 
 void FileSettings::MergeFiles() {
+	if (IsMergeFolderSet() && IsMergeFolderTemplate()) {
+		logging::loginfo("FILELOADER::FileSettings::MergeFiles merging all files from folder: %s", m_mergefolder.c_str());
+		for (auto& path : m_mergefolderpaths) {
+			fs::path filepath = fs::u8path(path);
+			FileInfo file;
+			file.LoadFile(filepath.string());
+			if (!file.IsReady()) {
+				continue;
+			}
+			std::vector<RowInfo>&& data = m_parentFile->GetData();
+			std::vector<RowInfo>&& mergeData = file.GetData();
+			int idx = -1;
+			for (auto& row : data) {
+				idx++;
+				std::string value = row.GetData(m_mergefolderif.first);
+				if (value == "")
+					continue;
+				for (auto& merge_row : mergeData) {
+					std::string merge_value = merge_row.GetData(m_mergefolderif.second);
+					if (merge_value == "")
+						continue;
+					if (merge_value != value)
+						continue;
+					for (auto& pair : m_mergeheadersfolder) {
+						std::string new_val = merge_row.GetData(pair.second);
+						if (new_val != "") {
+							row.UpdateData(pair.first, new_val);
+						}
+					}
+					break;
+				}
+				if (row.Changed()) {
+					m_parentFile->SetRowData(row, idx);
+				}
+			}
+		}
+	}
+
 	logging::loginfo("FILELOADER::FileSettings::MergeFiles Merging files\n\t%s\n\t%s\n\t And Searching for header: %s to fill with %s", m_parentFile->GetFilename().c_str(), m_mergefile.GetFilename().c_str(), m_mergeif.first.c_str(), m_mergeif.second.c_str());
 	std::vector<RowInfo> &&data = m_parentFile->GetData();
 	std::vector<RowInfo> &&mergeData = m_mergefile.GetData();
@@ -681,7 +719,11 @@ void FileSettings::SetMergeFolder(const std::string& folder) {
 			return;
 		}
 		for (const auto& entry : fs::directory_iterator(path)) {
-			if (entry.is_regular_file()) {
+			if (entry.is_regular_file()
+				&& (entry.path().extension().string() == ".csv"
+					|| entry.path().extension().string() == ".CSV"
+					|| entry.path().extension().string() == ".xlsx"
+					|| entry.path().extension().string() == ".XLSX")) {
 				m_mergefolderpaths.push_back(entry.path().string());
 			}
 		}
