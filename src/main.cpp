@@ -1,5 +1,6 @@
 #include "NimbleAnalyzer.h"
 #include "logging.h"
+#include <Windows.h>
 
 int main(int argc, char *argv[]) {
   if (!engine::Init())
@@ -15,4 +16,8 @@ int main(int argc, char *argv[]) {
 	ui::Shutdown();
 	engine::Shutdown();
   return 0;
+}
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+  return main(__argc, __argv);
 }

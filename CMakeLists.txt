@@ -48,6 +48,11 @@ source_group("Header Files" FILES ${HEADER_FILES})
 
 # Building target 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES})
+if(MSVC)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS"
+    )
+endif()
 target_include_directories(${PROJECT_NAME} PUBLIC src)
 target_link_libraries(${PROJECT_NAME} PRIVATE raylib ImGui rlImGui nfd xlnt)
 
