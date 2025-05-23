@@ -77,7 +77,7 @@ public:
 	void RemoveHeaderToMerge(const std::string& header);
 	void MergeFiles();
 	bool IsMergeFileSet() const;
-	void SetMergeFolder(const std::string& folder);
+	void SetMergeFolder(const std::string& folder, const bool ignoreCache = false);
 	std::string GetMergeFolder() const;
 	bool IsMergeFolderSet() const;
 	std::vector<std::string> GetMergeFolderPaths() const;

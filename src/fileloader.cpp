@@ -3,98 +3,18 @@
 #include <xlnt/xlnt.hpp>
 #include <filesystem>
 #include <fstream>
+#include <format>
 #include "logging.h"
+#include "utils.h"
 
 namespace fs = std::filesystem;
 
 // Function predefinitions
-static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string& filename);
-static void s_SaveExcelSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite = false, const std::string& sourcefile = "");
-static std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename);
-static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::vector<std::string>>& csvSheet, const bool overwrite = false, const std::string& sourcefile = "");
 static bool s_CheckFile(const std::string& filename);
-static bool s_IsNumber(const std::string& input);
-static bool s_IsInteger(const std::string& input);
-static std::pair<std::string, std::string> s_Splitlines(const std::string& input, const std::string& splitat);
-static bool s_StrContains(const std::string& input, const std::string& substring);
-void s_RemoveAllSubstrings(std::string& input, const std::string& toRemove);
-
-static bool s_StrContains(const std::string& input, const std::string& substring) {
-	return (input.find(substring) != std::string::npos);
-}
-
-static void s_RemoveAllSubstrings(std::string& input, const std::string& toRemove) {
-	size_t pos;
-	while ((pos = input.find(toRemove)) != std::string::npos) {
-		input.erase(pos, toRemove.length());
-	}
-}
-
-static std::pair<std::string, std::string> s_Splitlines(const std::string& input, const std::string& splitat) {
-	size_t pos = input.find(splitat);
-	if (pos == std::string::npos) {
-		logging::loginfo("No delimiter found: %s", input.c_str());
-		return { input, "" }; // No delimiter found
-	}
-
-	std::string left = input.substr(0, pos);
-	std::string right = input.substr(pos + splitat.length());
-
-	return { left, right };
-}
-
-static bool s_IsNumber(const std::string& input) {
-	try{
-		if (input.size() == 0) return false;
-		std::string str = input;
-		std::replace(str.begin(), str.end(), ',', '.');
-		// Checking for prefix
-		size_t start = 0;
-		if (input[0] == '-' || input[0] == '+') {
-			if (input.size() == 1) return false;
-			start = 1;
-		}
-		// Checking for any characters
-		int dotcount = 0;
-		for (size_t i = start; i < input.size(); ++i) {
-			if (input[i] > 255 || input[i] < 0)
-				return false;
-			if (std::isdigit(input[i])) {
-				continue;
-			}
-			else if (input[i] == '.' || input[i] == ',') {
-				dotcount++;
-				if (dotcount > 1)
-					return false;
-				continue;
-			}
-			else {
-				return false;
-			}
-		}
-		if (dotcount == 1)
-			return true;
-	}
-	catch (const std::exception& e){
-		std::cout << e.what() << "\n";
-		return false;
-	}
-	return true;
-}
-
-static bool s_IsInteger(const std::string& input) {
-	// First make sure there are no invalid characters
-	size_t start = 0;
-	if (input[0] == '+' || input[0] == '-')
-		start = 1;
-	for (size_t i = start; i < input.size(); i++) {
-		if (input[0] > 255 || input[0] < 0)
-			return false;
-		if (!std::isdigit(input[i]))
-			return false;
-	}
-	return true;
-}
+std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename);
+static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string& filename);
+static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite = false, const std::string& sourcefile = "");
+static void s_SaveExcelSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite = false, const std::string& sourcefile = "");
 
 static bool s_CheckFile(const std::string& filename) {
 	try {
@@ -137,13 +57,13 @@ std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename
 		// Reading csv line by line
 		int x = 0;
 		while (std::getline(file, line)) {
-			s_RemoveAllSubstrings(line, "\"");
-			s_RemoveAllSubstrings(line, "\n");
-			s_RemoveAllSubstrings(line, "\t");
-			s_RemoveAllSubstrings(line, "\r");
+			RemoveAllSubstrings(line, "\"");
+			RemoveAllSubstrings(line, "\n");
+			RemoveAllSubstrings(line, "\t");
+			RemoveAllSubstrings(line, "\r");
 			// first line often containes seperator
 			if (x == 0 && line.starts_with("sep=")) {
-				separator = s_Splitlines(line, "=").second;
+				separator = Splitlines(line, "=").second;
 				// Next two lines are NEEDED!!!! because the separator string does not only contain ';'
 				separator.erase(0, separator.find_first_not_of(" \t\r\n"));
 				separator.erase(separator.find_last_not_of(" \t\r\n") + 1);
@@ -151,10 +71,10 @@ std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename
 			}
 			// Now generate the row
 			std::vector<std::string> row;
-			std::pair<std::string, std::string> values = s_Splitlines(line, separator);
-			while (s_StrContains(values.second, separator)) {
+			std::pair<std::string, std::string> values = Splitlines(line, separator);
+			while (StrContains(values.second, separator)) {
 				row.push_back(values.first);
-				values = s_Splitlines(values.second, separator);
+				values = Splitlines(values.second, separator);
 			}
 			row.push_back(values.first);
 			row.push_back(values.second);
@@ -197,7 +117,7 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 			std::vector<std::string> rowdata;
 			for (auto cell : rows) {
 				std::string value = cell.to_string();
-				if (s_IsNumber(value)) {
+				if (IsNumber(value)) {
 					std::replace(value.begin(), value.end(), '.', ',');
 				}
 				rowdata.push_back(value);
@@ -225,7 +145,7 @@ static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::v
 		for (int x = 0; x < row.size(); x++) {
 			std::string val = row[x];
 			if (x == 0) {
-				if (s_IsInteger(val) || s_IsNumber(val)) {
+				if (IsInteger(val) || IsNumber(val)) {
 					file << val;
 				}
 				else {
@@ -234,7 +154,7 @@ static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::v
 			}
 			else {
 				file << ';';
-				if (s_IsInteger(val) || s_IsNumber(val)) {
+				if (IsInteger(val) || IsNumber(val)) {
 					file << val;
 				}
 				else {
@@ -291,13 +211,14 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 			if (skip)
 				continue;
 			// Asign cell integer value
-			if (s_IsInteger(value)) {
+			if (IsInteger(value)) {
 				int number = std::stoi(value);
 				dest_cell.value(number);
 				continue;
 			}
 			// Asign cell float value
 			// NOT WORKING CORRECTLY DUE TO PRECISION SHIT!!!
+			// Maybe it deosnt matter and you should set precision for cells in excel??? idk
 			/*
 			if (s_IsNumber(value)) {
 				replace(value.begin(), value.end(), ',', '.');
@@ -370,9 +291,16 @@ void FileInfo::LoadFile(const std::string& filename) {
 			const std::string& header = m_headerinfo[y-1].first;
 			if (header == "")
 				continue;
-			const std::string& value = m_sheetData[x][y];
+			std::string& value = m_sheetData[x][y];
 			if (value != "")
 				dataSet = true;
+			if (StrContains(header, "Date")
+				|| StrContains(header, "Datum")
+				|| StrContains(header, "datum")
+				|| StrContains(header, "date")) {
+				if (IsNumber(value))
+					value = ExcelSerialToDate(std::stoi(value));
+			}
 			rowinfo.AddData(header, value);
 		}
 		if(dataSet)
@@ -645,42 +573,76 @@ std::vector<std::pair<std::string, std::string>> FileSettings::GetMergeHeaders()
 void FileSettings::MergeFiles() {
 	if (IsMergeFolderSet() && IsMergeFolderTemplate()) {
 		logging::loginfo("FILELOADER::FileSettings::MergeFiles merging all files from folder: %s", m_mergefolder.c_str());
+		std::string cache = m_mergefolder + "/.cache";
+		fs::path cachepath = fs::u8path(cache);
+		std::ofstream cachefile(cachepath.wstring(), std::ios::binary);
+		if (!cachefile) {
+			logging::logwarning("FILELOADER::FileSettings::MergeFiles cannot cache filedata!\n%s", cache);
+		}
 		for (auto& path : m_mergefolderpaths) {
-			fs::path filepath = fs::u8path(path);
 			FileInfo file;
-			file.LoadFile(filepath.string());
+			file.LoadFile(path);
 			if (!file.IsReady()) {
 				continue;
 			}
+			if (cachefile) {
+				fs::path filep = fs::u8path(path);
+				cachefile << cache << " : " << GetLastWriteTime(filep) << "\n";
+			}
 			std::vector<RowInfo>&& data = m_parentFile->GetData();
 			std::vector<RowInfo>&& mergeData = file.GetData();
-			int idx = -1;
-			for (auto& row : data) {
-				idx++;
-				std::string value = row.GetData(m_mergefolderif.first);
-				if (value == "")
-					continue;
-				for (auto& merge_row : mergeData) {
-					std::string merge_value = merge_row.GetData(m_mergefolderif.second);
-					if (merge_value == "")
-						continue;
-					if (merge_value != value)
-						continue;
-					for (auto& pair : m_mergeheadersfolder) {
-						std::string new_val = merge_row.GetData(pair.second);
-						if (new_val != "") {
-							row.UpdateData(pair.first, new_val);
+			if (m_mergefolderif.first == "") {
+				for (auto& row : mergeData) {
+					// Setting up a new row
+					RowInfo newrow = data.back();
+					for (auto&& header : m_parentFile->GetHeaderNames()) {
+						newrow.UpdateData(header, "");
+					}
+					// Getting and updating
+					bool dataset = false;
+					for (auto& mergeheader : m_mergeheadersfolder) {
+						const std::string value = row.GetData(mergeheader.second);
+						if (value != "") {
+							newrow.UpdateData(mergeheader.first, value);
+							dataset = true;
 						}
 					}
-					break;
-				}
-				if (row.Changed()) {
-					m_parentFile->SetRowData(row, idx);
+					if (dataset) {
+						m_parentFile->AddRowData(newrow);
+					}
 				}
 			}
+			else {
+				int idx = -1;
+				for (auto& row : data) {
+					idx++;
+					std::string value = row.GetData(m_mergefolderif.first);
+					if (value == "")
+						continue;
+					for (auto& merge_row : mergeData) {
+						std::string merge_value = merge_row.GetData(m_mergefolderif.second);
+						if (merge_value == "")
+							continue;
+						if (merge_value != value)
+							continue;
+						for (auto& pair : m_mergeheadersfolder) {
+							std::string new_val = merge_row.GetData(pair.second);
+							if (new_val != "") {
+								row.UpdateData(pair.first, new_val);
+							}
+						}
+						break;
+					}
+					if (row.Changed()) {
+						m_parentFile->SetRowData(row, idx);
+					}
+				}
+			}
+			file.Unload();
 		}
 	}
-
+	if (!m_mergefile.IsReady())
+		return;
 	logging::loginfo("FILELOADER::FileSettings::MergeFiles Merging files\n\t%s\n\t%s\n\t And Searching for header: %s to fill with %s", m_parentFile->GetFilename().c_str(), m_mergefile.GetFilename().c_str(), m_mergeif.first.c_str(), m_mergeif.second.c_str());
 	std::vector<RowInfo> &&data = m_parentFile->GetData();
 	std::vector<RowInfo> &&mergeData = m_mergefile.GetData();
@@ -710,13 +672,26 @@ void FileSettings::MergeFiles() {
 	}
 }
 
-void FileSettings::SetMergeFolder(const std::string& folder) {
+void FileSettings::SetMergeFolder(const std::string& folder, const bool ignoreCache) {
 	fs::path path = fs::u8path(folder);
 
 	try {
 		if (!fs::exists(path)) {
-			logging::loginfo("FILELOADER::FileSettings::SetMergeFolder Filepath is not valid: %s", folder);
+			logging::loginfo("FILELOADER::FileSettings::SetMergeFolder Directory is not valid: %s", folder);
 			return;
+		}
+		std::string cache = folder + "/.cache";
+		fs::path cachepath = fs::u8path(cache);
+		std::ifstream cachefile(cachepath.wstring(), std::ios::binary);
+		std::vector<std::pair<std::string, std::string>> cachedData;
+		std::vector<std::string> newcache;
+		if (!ignoreCache && cachefile) {
+			std::string line;
+			while (std::getline(cachefile, line)) {
+				RemoveAllSubstrings(line, "\n");
+				std::pair<std::string, std::string> values = Splitlines(line, " : ");
+				cachedData.push_back(values);
+			}
 		}
 		for (const auto& entry : fs::directory_iterator(path)) {
 			if (entry.is_regular_file()
@@ -724,7 +699,23 @@ void FileSettings::SetMergeFolder(const std::string& folder) {
 					|| entry.path().extension().string() == ".CSV"
 					|| entry.path().extension().string() == ".xlsx"
 					|| entry.path().extension().string() == ".XLSX")) {
-				m_mergefolderpaths.push_back(entry.path().string());
+				std::u8string u8str = entry.path().u8string();
+				std::string strpath = std::string(u8str.begin(), u8str.end());
+				for (auto& c : strpath) {
+					if (c == '\\')
+						c = '/';
+				}
+				bool add = true;
+				for (auto& pair : cachedData) {
+					if (pair.first == strpath && pair.second == GetLastWriteTime(entry.path())) {
+						add = false;
+						break;
+					}
+				}
+				if (!add)
+					continue;
+				m_mergefolderpaths.push_back(strpath);
+				logging::loginfo("FILELOADER::FileSettings::SetMergeFolder %s", m_mergefolderpaths.back().c_str());
 			}
 		}
 	}
@@ -754,11 +745,15 @@ std::vector<std::string> FileSettings::GetMergeFolderPaths() const {
 }
 
 void FileSettings::SetMergeFolderTemplate(const std::string& filepath) {
+	logging::loginfo("FILELOADER::FileSettings::SetMergeFolderTemplate %s", filepath.c_str());
 	if (!m_parentFile) {
 		logging::logwarning("FILELOADER::FileSettings::SetMergeFolderTemplate m_parentFile is not set yet!");
 	}
-	if (m_mergefolderfile.IsReady())
+	if (m_mergefolderfile.IsReady()) {
+		m_mergefolderif = {  };
+		m_mergeheadersfolder.clear();
 		m_mergefolderfile.Unload();
+	}
 	m_mergefolderfile.LoadFile(filepath);
 	if (!m_mergefolderfile.IsReady()) {
 		logging::logwarning("FILELOADER::FileSettings::SetMergeFolderTemplate could not load file properly: %s", filepath.c_str());

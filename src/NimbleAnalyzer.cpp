@@ -13,6 +13,7 @@
 #include "fileDialog.h"
 #include "fileloader.h"
 #include "dataDisplayer.h"
+#include "utils.h"
 
 namespace fs = std::filesystem;
 

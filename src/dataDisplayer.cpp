@@ -1,20 +1,9 @@
 #include "dataDisplayer.h"
 #include <imgui.h>
+#include "utils.h"
 #include "ui_helper.h"
 
 #define DEFAULT_INPUT_WIDTH 175.0f
-
-static std::pair<std::string, std::string> s_Splitlines(const std::string& input, const std::string& splitat) {
-	size_t pos = input.find(splitat);
-	if (pos == std::string::npos) {
-		return { input, "" }; // No delimiter found
-	}
-
-	std::string left = input.substr(0, pos);
-	std::string right = input.substr(pos + splitat.length());
-
-	return { left, right };
-}
 
 void DisplayData(RowInfo &data, const unsigned int identifier, const std::string &mode, const std::vector<std::string> &hiddenHeaders) {
 	// Drawing vertical with headers on right side
@@ -28,7 +17,7 @@ void DisplayData(RowInfo &data, const unsigned int identifier, const std::string
 			}
 			std::string label = rdata.first + " ## " + std::to_string(identifier) + std::to_string(headerfix);
 			std::string value = rdata.second;
-			std::string headersplit = s_Splitlines(rdata.first, " ##").first;
+			std::string headersplit = Splitlines(rdata.first, " ##").first;
 			ImGui::SetNextItemWidth(DEFAULT_INPUT_WIDTH);
 			if(ImGui::InputStringWithHint(value, label, headersplit.c_str()))
 				data.UpdateData(rdata.first, value);
@@ -45,7 +34,7 @@ void DisplayData(RowInfo &data, const unsigned int identifier, const std::string
 				if (*it == rdata.first)
 					continue;
 			}
-			std::string headersplit = s_Splitlines(rdata.first, " ##").first;
+			std::string headersplit = Splitlines(rdata.first, " ##").first;
 			std::string label = "## " + headersplit + std::to_string(identifier) + std::to_string(headerfix);
 			std::string value = rdata.second;
 			ImGui::Text("%s", rdata.first.c_str());
@@ -69,7 +58,7 @@ void DisplayData(RowInfo &data, const unsigned int identifier, const std::string
 				if (*it == rdata.first)
 					continue;
 			}
-			std::string headersplit = s_Splitlines(rdata.first, " ##").first;
+			std::string headersplit = Splitlines(rdata.first, " ##").first;
 			std::string label = "## " + headersplit + std::to_string(identifier) + std::to_string(headerfix);
 			std::string childname = label + "_child";
 			std::string value = rdata.second;
