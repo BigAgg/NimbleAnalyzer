@@ -317,7 +317,7 @@ void FileInfo::LoadFile(const std::string& filename) {
 }
 
 void FileInfo::SaveFile() {
-	s_SaveExcelSheet(m_filename, m_sheetData, true);
+	s_SaveExcelSheet(m_filename, m_sheetData, false);
 }
 
 void FileInfo::SaveFileAs(const std::string& filename){
@@ -577,9 +577,6 @@ void FileSettings::MergeFiles() {
 		for (auto& finfo : m_parentFile->GetData()) {
 			dontimportvalues.insert(finfo.GetData(m_dontimportifexistsheader));
 		}
-	}
-	for (auto& val : dontimportvalues) {
-		logging::loginfo("FILELOADER::FileSettings::MergeFiles Value to skip: %s", val.c_str());
 	}
 	if (IsMergeFolderSet() && IsMergeFolderTemplate()) {
 		logging::loginfo("FILELOADER::FileSettings::MergeFiles merging all files from folder: %s", m_mergefolder.c_str());

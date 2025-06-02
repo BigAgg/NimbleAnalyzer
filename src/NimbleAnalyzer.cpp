@@ -373,7 +373,8 @@ namespace ui {
 		ImGui::SetItemTooltip("Datei speichern als");
 		ImGui::SameLine();
 		if (rlImGuiImageButtonSize("Datei speichern", &save_icon, { 30.0f, 30.0f })) {
-			current_project->loadedFile.SaveFile();
+			const std::string filename = current_project->loadedFile.GetFilename();
+			current_project->loadedFile.SaveFileAs(filename, filename);
 		}
 		ImGui::SetItemTooltip((char*)u8"Datei speichern (Überschreibt geladene Datei)");
 	}
@@ -391,13 +392,13 @@ namespace ui {
 		ImGui::SameLine();
 		ImGui::Text("Aktueller Merge-Ordner: %s", mergefolderpath.string().c_str());
 		if (current_project->loadedFile.Settings->IsMergeFolderSet()) {
-			ImGui::SameLine();
-			if (ImGui::Button((char*)u8"Wähle template")) {
+			if (rlImGuiImageButtonSize((char*)u8"Wähle template", &file_icon, {30.0f, 30.0f})) {
 				std::string templatefile = OpenFileDialog("Excel Sheet", "xlsx,csv");
 				if (templatefile != "") {
 					current_project->loadedFile.Settings->SetMergeFolderTemplate(templatefile);
 				}
 			}
+			ImGui::SetItemTooltip((char*)u8"Wähle Template");
 			ImGui::SameLine();
 			if (ImGui::Checkbox("Ignore cache", &s_ignoreCache)) {
 				current_project->loadedFile.Settings->SetMergeFolder(current_project->loadedFile.Settings->GetMergeFolder(), s_ignoreCache);
