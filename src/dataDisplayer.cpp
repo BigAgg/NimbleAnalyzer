@@ -60,7 +60,7 @@ void DisplayData(RowInfo &data, const unsigned int identifier, const std::string
 			}
 			std::string headersplit = Splitlines(rdata.first, " ##").first;
 			std::string label = "## " + headersplit + std::to_string(identifier) + std::to_string(headerfix);
-			std::string childname = label + "_child";
+			std::string childname = label + "_child" + std::to_string(identifier);
 			std::string value = rdata.second;
 			ImGui::BeginChild(childname.c_str(), {DEFAULT_INPUT_WIDTH, 50.0f});
 			ImGui::Text("%s", headersplit.c_str());
@@ -75,5 +75,13 @@ void DisplayData(RowInfo &data, const unsigned int identifier, const std::string
 		}
 		ImGui::Separator();
 		//ImGui::EndChild();
+	}
+}
+
+void DisplayDataset(std::vector<RowInfo>& data, const std::string& mode, const std::vector<std::string>& hiddenHeaders) {
+	int idx = 0;
+	for (auto& rowinfo : data) {
+		DisplayData(rowinfo, idx, mode, hiddenHeaders);
+		idx++;
 	}
 }

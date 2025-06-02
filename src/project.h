@@ -25,6 +25,8 @@ public:
 
 	void Unload();
 
+	void Save();
+
 	FileInfo loadedFile;
 
 private:

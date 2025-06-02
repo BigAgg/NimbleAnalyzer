@@ -50,7 +50,13 @@ namespace engine {
 			logging::logwarning("ENGINE::INIT Could not load settings, using default settings instead!");
 		}
 		// Initializing raylib
-		InitWindow(engineSettings.windowW, engineSettings.windowH, "NimbleAnalyzer");
+#ifdef VERSION
+		std::string windowName = "NimbleAnalyzer ";
+		windowName += VERSION;
+#else
+		std::string windowName = "NimbleAnalyzer";
+#endif
+		InitWindow(engineSettings.windowW, engineSettings.windowH, windowName.c_str());
 		SetWindowState(FLAG_WINDOW_RESIZABLE);
 		if (!IsWindowReady()) {
 			logging::logerror("ENGINE::INIT Raylib could not be initialized!");
@@ -151,9 +157,12 @@ namespace ui {
 		UI_DEFAULT = UI_PROJECT_WINDOW,
 	};
 	
-	static Texture file_icon;
 	static Texture folder_icon;
+	static Texture open_file_icon;
+	static Texture file_icon;
+	static Texture delete_file_icon;
 	static Texture save_icon;
+	static Texture save_as_icon;
 
 	static struct {
 		UI_MODE ui_mode = UI_DEFAULT;
@@ -166,6 +175,7 @@ namespace ui {
 	}
 
 	static std::vector<std::string> s_hiddenHeaders;
+	static bool s_ignoreCache = false;
 
 	bool Init() {
 		// Check if the engine is initialized
@@ -175,9 +185,18 @@ namespace ui {
 			return false;
 		}
 		// Loading icons
+		delete_file_icon = LoadTexture("icons/delete_file_icon.png");
+		if (!IsTextureValid(delete_file_icon))
+			logging::logwarning("UI::INIT File Icon could not be found at './icons/delete_file_icon.png");
+		save_as_icon = LoadTexture("icons/save_as_icon.png");
+		if (!IsTextureValid(save_as_icon))
+			logging::logwarning("UI::INIT File Icon could not be found at './icons/save_as_icon.png");
 		file_icon = LoadTexture("icons/file_icon.png");
 		if (!IsTextureValid(file_icon))
-			logging::logwarning("UI::INIT File Icon could not be found at './icons/file_icon.png'");
+			logging::logwarning("UI::INIT File Icon could not be found at './icons/file_icon.png");
+		open_file_icon = LoadTexture("icons/open_file_icon.png");
+		if (!IsTextureValid(open_file_icon))
+			logging::logwarning("UI::INIT File Icon could not be found at './icons/open_file_icon.png'");
 		folder_icon = LoadTexture("icons/folder_icon.png");
 		if (!IsTextureValid(folder_icon))
 			logging::logwarning("UI::INIT Folder Icon could not be found at './icons/folder_icon.png'");
@@ -233,9 +252,6 @@ namespace ui {
 
 	static void MainMenu() {
 		ImGui::BeginMainMenuBar();
-#ifdef VERSION
-		ImGui::Text("%s", VERSION);
-#endif
 		// Arbeitsfenster wechseln
 		if (ImGui::Button("Projekt wechseln")) {
 			uiSettings.ui_mode = UI_DEFAULT;
@@ -339,30 +355,41 @@ namespace ui {
 			}
 			ImGui::EndListBox();
 		}
-		if (ImGui::Button((char*)u8"Neue Datei Hinzufügen")) {
+		if (rlImGuiImageButtonSize((char*)u8"Neue Datei Hinzufügen", &file_icon, { 30.0f, 30.0f })) {
 			current_project->AddFilePath(OpenFileDialog("Excel Sheet", "xlsx,csv"));
 		}
+		ImGui::SetItemTooltip((char*)u8"Datei hinzufügen");
 		ImGui::SameLine();
-		if (ImGui::Button("Datei entfernen")) {
+		if (rlImGuiImageButtonSize("Datei entfernen", &delete_file_icon, { 30.0f, 30.0f })) {
 			current_project->RemoveFilePath(current_project->GetSelectedFile());
 		}
-		if(ImGui::Button("Datei speichern als")){
+		ImGui::SetItemTooltip("Datei entfernen");
+		ImGui::SameLine();
+		if(rlImGuiImageButtonSize("Datei speichern als", &save_as_icon, {30.0f, 30.0f})) {
 			const std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
 			if (filename != "")
 				current_project->loadedFile.SaveFileAs(current_project->loadedFile.GetFilename(), filename);
 		}
+		ImGui::SetItemTooltip("Datei speichern als");
+		ImGui::SameLine();
+		if (rlImGuiImageButtonSize("Datei speichern", &save_icon, { 30.0f, 30.0f })) {
+			current_project->loadedFile.SaveFile();
+		}
+		ImGui::SetItemTooltip((char*)u8"Datei speichern (Überschreibt geladene Datei)");
 	}
 
 	static void DisplayFileSettings() {
 		// Select mergefolder
 		fs::path mergefolderpath = current_project->loadedFile.Settings->GetMergeFolder();
-		ImGui::Text("Aktueller Mergefolder: %s", mergefolderpath.string().c_str());
-		if (ImGui::Button("Neuer Mergefolder")) {
+		if (rlImGuiImageButtonSize("Neuer Merge-Ordner", &folder_icon, { 30.0f, 30.0f })) {
 			std::string folder = OpenDirectoryDialog();
 			if (folder != "") {
-				current_project->loadedFile.Settings->SetMergeFolder(folder);
+				current_project->loadedFile.Settings->SetMergeFolder(folder, s_ignoreCache);
 			}
 		}
+		ImGui::SetItemTooltip((char*)u8"Wähle einen neuen Merge-Ordner \n(Alle Dateien aus diesem Ordner werden in die aktuell ausgewählte Datei geladen)");
+		ImGui::SameLine();
+		ImGui::Text("Aktueller Merge-Ordner: %s", mergefolderpath.string().c_str());
 		if (current_project->loadedFile.Settings->IsMergeFolderSet()) {
 			ImGui::SameLine();
 			if (ImGui::Button((char*)u8"Wähle template")) {
@@ -370,6 +397,10 @@ namespace ui {
 				if (templatefile != "") {
 					current_project->loadedFile.Settings->SetMergeFolderTemplate(templatefile);
 				}
+			}
+			ImGui::SameLine();
+			if (ImGui::Checkbox("Ignore cache", &s_ignoreCache)) {
+				current_project->loadedFile.Settings->SetMergeFolder(current_project->loadedFile.Settings->GetMergeFolder(), s_ignoreCache);
 			}
 		}
 		// Select single mergefile
@@ -599,10 +630,11 @@ namespace ui {
 		if (current_project->loadedFile.Settings) {
 			ImGui::Separator();
 			std::vector<RowInfo>&& data = current_project->loadedFile.GetData();
+			DisplayDataset(data, "horizontal-aboveheader", s_hiddenHeaders);
 			int x = 0;
 			for (RowInfo& row : data) {
 				//DisplayData(row, x, "horizontal-aboveheader");
-				DisplayData(row, x, "horizontal-aboveheader", s_hiddenHeaders);
+				//DisplayData(row, x, "horizontal-aboveheader", s_hiddenHeaders);
 				if (row.Changed())
 					current_project->loadedFile.SetRowData(row, x);
 				x++;

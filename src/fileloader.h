@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <xlnt/xlnt.hpp>
+#include <unordered_set>
 
 class RowInfo;
 class FileSettings;
@@ -80,7 +81,7 @@ public:
 	void SetMergeFolder(const std::string& folder, const bool ignoreCache = false);
 	std::string GetMergeFolder() const;
 	bool IsMergeFolderSet() const;
-	std::vector<std::string> GetMergeFolderPaths() const;
+	std::unordered_set<std::string> GetMergeFolderPaths() const;
 	void SetMergeFolderTemplate(const std::string& filepath);
 	FileInfo GetMergeFolderTemplate() const;
 	bool IsMergeFolderTemplate() const;
@@ -92,7 +93,7 @@ private:
 	FileInfo m_mergefile;
 	FileInfo m_mergefolderfile;
 	std::string m_dontimportifexistsheader;
-	std::vector<std::string> m_mergefolderpaths;
+	std::unordered_set<std::string> m_mergefolderpaths;
 	std::string m_mergefolder = "";
 	bool m_mergefolderSet = false;
 	bool m_mergefolderfileSet = false;

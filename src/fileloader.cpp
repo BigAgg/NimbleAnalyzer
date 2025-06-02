@@ -6,6 +6,7 @@
 #include <format>
 #include "logging.h"
 #include "utils.h"
+#include <unordered_set>
 
 namespace fs = std::filesystem;
 
@@ -571,11 +572,14 @@ std::vector<std::pair<std::string, std::string>> FileSettings::GetMergeHeaders()
 }
 
 void FileSettings::MergeFiles() {
-	std::vector<std::string> dontimportvalues;
+	std::unordered_set<std::string> dontimportvalues;
 	if (m_dontimportifexistsheader != "" && m_dontimportifexistsheader != "NONE") {
 		for (auto& finfo : m_parentFile->GetData()) {
-			dontimportvalues.push_back(finfo.GetData(m_dontimportifexistsheader));
+			dontimportvalues.insert(finfo.GetData(m_dontimportifexistsheader));
 		}
+	}
+	for (auto& val : dontimportvalues) {
+		logging::loginfo("FILELOADER::FileSettings::MergeFiles Value to skip: %s", val.c_str());
 	}
 	if (IsMergeFolderSet() && IsMergeFolderTemplate()) {
 		logging::loginfo("FILELOADER::FileSettings::MergeFiles merging all files from folder: %s", m_mergefolder.c_str());
@@ -601,10 +605,8 @@ void FileSettings::MergeFiles() {
 				for (auto& row : mergeData) {
 					if (dontimportvalues.size() > 0) {
 						std::string value = row.GetData(m_dontimportifexistsheader);
-						auto it = std::find(dontimportvalues.begin(), dontimportvalues.end(), value);
-						if (it != dontimportvalues.end()) {
+						if (dontimportvalues.find(value) != dontimportvalues.end())
 							continue;
-						}
 					}
 					// Setting up a new row
 					RowInfo newrow = data.back();
@@ -722,14 +724,12 @@ void FileSettings::SetMergeFolder(const std::string& folder, const bool ignoreCa
 				for (auto& pair : cachedData) {
 					if (pair.first == strpath && pair.second == GetLastWriteTime(entry.path())) {
 						add = false;
-						logging::loginfo("FILELOADER::FileSettings::SetMergeFolder Checking cache:\n%s\n%s", strpath, pair.first);
 						break;
 					}
 				}
 				if (!add)
 					continue;
-				m_mergefolderpaths.push_back(strpath);
-				logging::loginfo("FILELOADER::FileSettings::SetMergeFolder %s", m_mergefolderpaths.back().c_str());
+				m_mergefolderpaths.insert(strpath);
 			}
 		}
 		logging::loginfo("FILELOADER::FileSettings::SetMergeFolder Files to merge: %d", m_mergefolderpaths.size());
@@ -755,12 +755,11 @@ bool FileSettings::IsMergeFolderSet() const{
 	return m_mergefolderSet;
 }
 
-std::vector<std::string> FileSettings::GetMergeFolderPaths() const {
+std::unordered_set<std::string> FileSettings::GetMergeFolderPaths() const {
 	return m_mergefolderpaths;
 }
 
 void FileSettings::SetMergeFolderTemplate(const std::string& filepath) {
-	logging::loginfo("FILELOADER::FileSettings::SetMergeFolderTemplate %s", filepath.c_str());
 	if (!m_parentFile) {
 		logging::logwarning("FILELOADER::FileSettings::SetMergeFolderTemplate m_parentFile is not set yet!");
 	}
