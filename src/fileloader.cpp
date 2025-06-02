@@ -571,6 +571,12 @@ std::vector<std::pair<std::string, std::string>> FileSettings::GetMergeHeaders()
 }
 
 void FileSettings::MergeFiles() {
+	std::vector<std::string> dontimportvalues;
+	if (m_dontimportifexistsheader != "" && m_dontimportifexistsheader != "NONE") {
+		for (auto& finfo : m_parentFile->GetData()) {
+			dontimportvalues.push_back(finfo.GetData(m_dontimportifexistsheader));
+		}
+	}
 	if (IsMergeFolderSet() && IsMergeFolderTemplate()) {
 		logging::loginfo("FILELOADER::FileSettings::MergeFiles merging all files from folder: %s", m_mergefolder.c_str());
 		std::string cache = m_mergefolder + "/.cache";
@@ -579,6 +585,7 @@ void FileSettings::MergeFiles() {
 		if (!cachefile) {
 			logging::logwarning("FILELOADER::FileSettings::MergeFiles cannot cache filedata!\n%s", cache);
 		}
+		std::vector<RowInfo>&& data = m_parentFile->GetData();
 		for (auto& path : m_mergefolderpaths) {
 			FileInfo file;
 			file.LoadFile(path);
@@ -587,12 +594,18 @@ void FileSettings::MergeFiles() {
 			}
 			if (cachefile) {
 				fs::path filep = fs::u8path(path);
-				cachefile << cache << " : " << GetLastWriteTime(filep) << "\n";
+				cachefile << path << " : " << GetLastWriteTime(filep) << "\n";
 			}
-			std::vector<RowInfo>&& data = m_parentFile->GetData();
 			std::vector<RowInfo>&& mergeData = file.GetData();
 			if (m_mergefolderif.first == "") {
 				for (auto& row : mergeData) {
+					if (dontimportvalues.size() > 0) {
+						std::string value = row.GetData(m_dontimportifexistsheader);
+						auto it = std::find(dontimportvalues.begin(), dontimportvalues.end(), value);
+						if (it != dontimportvalues.end()) {
+							continue;
+						}
+					}
 					// Setting up a new row
 					RowInfo newrow = data.back();
 					for (auto&& header : m_parentFile->GetHeaderNames()) {
@@ -602,10 +615,8 @@ void FileSettings::MergeFiles() {
 					bool dataset = false;
 					for (auto& mergeheader : m_mergeheadersfolder) {
 						const std::string value = row.GetData(mergeheader.second);
-						if (value != "") {
-							newrow.UpdateData(mergeheader.first, value);
-							dataset = true;
-						}
+						newrow.UpdateData(mergeheader.first, value);
+						dataset = true;
 					}
 					if (dataset) {
 						m_parentFile->AddRowData(newrow);
@@ -670,10 +681,12 @@ void FileSettings::MergeFiles() {
 			m_parentFile->SetRowData(row, idx);
 		}
 	}
+	SetMergeFolder(m_mergefolder);
 }
 
 void FileSettings::SetMergeFolder(const std::string& folder, const bool ignoreCache) {
 	fs::path path = fs::u8path(folder);
+	m_mergefolderpaths.clear();
 
 	try {
 		if (!fs::exists(path)) {
@@ -709,6 +722,7 @@ void FileSettings::SetMergeFolder(const std::string& folder, const bool ignoreCa
 				for (auto& pair : cachedData) {
 					if (pair.first == strpath && pair.second == GetLastWriteTime(entry.path())) {
 						add = false;
+						logging::loginfo("FILELOADER::FileSettings::SetMergeFolder Checking cache:\n%s\n%s", strpath, pair.first);
 						break;
 					}
 				}
@@ -718,6 +732,7 @@ void FileSettings::SetMergeFolder(const std::string& folder, const bool ignoreCa
 				logging::loginfo("FILELOADER::FileSettings::SetMergeFolder %s", m_mergefolderpaths.back().c_str());
 			}
 		}
+		logging::loginfo("FILELOADER::FileSettings::SetMergeFolder Files to merge: %d", m_mergefolderpaths.size());
 	}
 	catch (const fs::filesystem_error& e) {
 		logging::logerror("FIELELOADER::FileSettings::SetMergeFolder Filesystem error: \n%s", e.what());
@@ -810,4 +825,12 @@ std::pair<std::string, std::string> FileSettings::GetMergeFolderIf() const {
 }
 std::vector<std::pair<std::string, std::string>> FileSettings::GetMergeFolderHeaders() const {
 	return m_mergeheadersfolder;
+}
+
+void FileSettings::SetDontImportIf(const std::string& header) {
+	m_dontimportifexistsheader = header;
+}
+
+std::string FileSettings::GetDontImportIf() {
+	return m_dontimportifexistsheader;
 }

@@ -85,10 +85,13 @@ public:
 	FileInfo GetMergeFolderTemplate() const;
 	bool IsMergeFolderTemplate() const;
 	void Unload();
+	void SetDontImportIf(const std::string& header);
+	std::string GetDontImportIf();
 private:
 	FileInfo* m_parentFile = nullptr;
 	FileInfo m_mergefile;
 	FileInfo m_mergefolderfile;
+	std::string m_dontimportifexistsheader;
 	std::vector<std::string> m_mergefolderpaths;
 	std::string m_mergefolder = "";
 	bool m_mergefolderSet = false;

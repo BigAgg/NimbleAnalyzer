@@ -443,6 +443,8 @@ namespace ui {
 	static void DisplayHeaderSettings() {
 		auto&& headers = current_project->loadedFile.GetHeaderNames();
 		for (auto&& header : headers) {
+			if (Splitlines(header, " ##").first == "")
+				continue;
 			if (header == "")
 				continue;
 			bool isSet = false;
@@ -474,14 +476,33 @@ namespace ui {
 	}
 
 	static void DisplayHeaderMergeFolderSettings() {
-		if (ImGui::Button("Daten Mergen")) {
-			current_project->loadedFile.Settings->MergeFiles();
-		}
-
 		auto headers = current_project->loadedFile.GetHeaderNames();
 		auto mergeheaders = current_project->loadedFile.Settings->GetMergeFolderTemplate().GetHeaderNames();
 		auto setmergeheaders = current_project->loadedFile.Settings->GetMergeFolderHeaders();
 		auto headerif = current_project->loadedFile.Settings->GetMergeFolderIf();
+		std::string dontimportif = current_project->loadedFile.Settings->GetDontImportIf();
+
+		ImGui::BeginMenuBar();
+		if (ImGui::Button("Daten Mergen")) {
+			current_project->loadedFile.Settings->MergeFiles();
+		}
+		ImGui::Text("Daten Ignorieren wenn Header");
+		if (ImGui::BeginCombo("## Header ignorieren", dontimportif.c_str())) {
+			bool noneselect = (dontimportif == "NONE");
+			if (ImGui::Selectable("NONE", &noneselect)) {
+				current_project->loadedFile.Settings->SetDontImportIf("NONE");
+			}
+			for (auto& header : headers) {
+				if (Splitlines(header, " ##").first == "")
+					continue;
+				bool selected = (header == dontimportif);
+				if (ImGui::Selectable(header.c_str(), &selected)) {
+					current_project->loadedFile.Settings->SetDontImportIf(header);
+				}
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::EndMenuBar();
 
 		for (auto& header : headers) {
 			if (header == "")
@@ -528,36 +549,38 @@ namespace ui {
 
 	static void ProjectWindow() {
 		int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_HorizontalScrollbar;
+		int flags_nohscroll = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar;
+		int flags_nomenu = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_HorizontalScrollbar;
 		float screenW = static_cast<float>(GetScreenWidth());
 		float screenH = static_cast<float>(GetScreenHeight());
 		ImGui::SetNextWindowSize({ screenW, screenH - 22.0f });
 		ImGui::SetNextWindowPos({ 0.0f, 22.0f });
-		ImGui::Begin("Wareneingang ## Window", nullptr, flags);
+		ImGui::Begin("Wareneingang ## Window", nullptr, flags_nohscroll);
 		DisplayMenuBar();
 		// Drawing Project selection
-		ImGui::BeginChild("Project selection window", {300.0f, 170.0f});
+		ImGui::BeginChild("Project selection window", {300.0f, 170.0f}, 0, flags_nomenu);
 		DisplayProjectSelection();
 		ImGui::EndChild();
 		// Drawing File selection
 		if (current_project->GetName() != "") {
 			ImGui::SameLine();
-			ImGui::BeginChild("Project file selection window", {500.0f, 170.0f});
+			ImGui::BeginChild("Project file selection window", {500.0f, 170.0f}, 0, flags_nomenu);
 			DisplayFileSelection();
 			ImGui::EndChild();
 			// Drawing file settings
 			if (current_project->loadedFile.IsReady()) {
 				ImGui::SameLine();
-				ImGui::BeginChild("File settings window", { 500.0f, 170.0f });
+				ImGui::BeginChild("File settings window", { 500.0f, 170.0f }, 0, flags_nomenu);
 				DisplayFileSettings();
 				ImGui::EndChild();
-				ImGui::BeginChild("Header settings", { 300.0f, 250.0f });
+				ImGui::BeginChild("Header settings", { 300.0f, 250.0f }, 0, flags_nomenu);
 				ImGui::SeparatorText("Werte ausblenden");
 				DisplayHeaderSettings();
 				ImGui::EndChild();
 				// Diplay merging settings if mergefile is loaded
 				if (current_project->loadedFile.Settings->GetMergeFile().IsReady()) {
 					ImGui::SameLine();
-					ImGui::BeginChild("Header merge settings window", { 700.0f, 250.0f });
+					ImGui::BeginChild("Header merge settings window", { 700.0f, 250.0f }, 0, flags_nomenu);
 					ImGui::SeparatorText((char*)u8"Merge header wählen");
 					DisplayHeaderMergeSettings();
 					ImGui::EndChild();
@@ -565,12 +588,13 @@ namespace ui {
 				if (current_project->loadedFile.Settings->IsMergeFolderSet()
 					&& current_project->loadedFile.Settings->GetMergeFolderTemplate().IsReady()) {
 					ImGui::SameLine();
-					ImGui::BeginChild("Header folder merge settings window", { 700, 250.0f });
+					ImGui::BeginChild("Header folder merge settings window", { 700, 250.0f }, 0, flags);
 					DisplayHeaderMergeFolderSettings();
 					ImGui::EndChild();
 				}
 			}
 		}
+		ImGui::BeginChild("Dataview", { screenW, screenH - 600 }, 0, flags_nomenu);
 		// Drawing the data for testing
 		if (current_project->loadedFile.Settings) {
 			ImGui::Separator();
@@ -584,6 +608,7 @@ namespace ui {
 				x++;
 			}
 		}
+		ImGui::EndChild();
 		ImGui::End();
 	}
 
