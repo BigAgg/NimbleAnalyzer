@@ -1,4 +1,10 @@
 #include "project.h"
+#include "logging.h"
+#include "utils.h"
+#include <filesystem>
+#include <fstream>
+
+namespace fs = std::filesystem;
 
 void Project::SetName(const std::string& name){
 	m_name = name;
@@ -6,14 +12,6 @@ void Project::SetName(const std::string& name){
 
 std::string Project::GetName() const{
 	return m_name;
-}
-
-void Project::SetParent(const std::string& parent){
-	m_parent = parent;
-}
-
-std::string Project::GetParent() const{
-	return m_parent;
 }
 
 void Project::AddFilePath(const std::string& path){
@@ -63,7 +61,66 @@ void Project::Unload() {
 	if (loadedFile.IsReady())
 		loadedFile.Unload();
 	m_name = "";
-	m_parent = "";
 	m_currentFile = "";
 	m_paths.clear();
+}
+
+void Project::Load(const std::string& name) {
+	m_name = name;
+	fs::path propath = fs::path("projects") / name;
+	if (!fs::exists(propath)) {
+		logging::logwarning("PROJECT::Project::Load Project does not exist: name");
+		return;
+	}
+	std::ifstream file(propath.string() + "/.pro", std::ios::binary);
+	if (!file) {
+		logging::logwarning("PROJECT::Project::Load no .pro file existing");
+		return;
+	}
+	std::string line;
+	std::getline(file, line);
+	RemoveAllSubstrings(line, "\n");
+	m_currentFile = line;
+	std::getline(file, line);
+	RemoveAllSubstrings(line, "\n");
+	const int amount = std::stoi(line);
+	m_paths.clear();
+	for (int x = 0; x < amount; x++) {
+		std::getline(file, line);
+		RemoveAllSubstrings(line, "\n");
+		if(line != "")
+			m_paths.push_back(line);
+	}
+}
+
+void Project::Save() {
+	if (m_name == "") {
+		return;
+	}
+	fs::create_directory("projects/" + m_name);
+	std::ofstream file("projects/" + m_name + "/" + ".pro", std::ios::binary);
+	if (file) {
+		file << m_currentFile << '\n';
+		file << m_paths.size() << '\n';
+		for (const std::string& path : m_paths) {
+			file << path << '\n';
+		}
+	}
+	loadedFile.SaveSettings("projects/" + m_name + "/");
+}
+
+void Project::Delete() {
+	if (m_name == "") {
+		return;
+	}
+	fs::path projectPath = fs::path("projects") / m_name;
+
+	// Prevent deleting root
+	if (projectPath == "projects") {
+		return;
+	}
+	// Checking if exists and deleting with all contents
+	if (fs::exists(projectPath)) {
+		fs::remove_all(projectPath);
+	}
 }

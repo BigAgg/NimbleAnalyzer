@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
 project(NimbleAnalyzer)
 # Project Version 
-set(PROJECT_VERSION "0.0.2")
+set(PROJECT_VERSION "0.0.3")
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 
 # Setting compile definitions
-add_compile_definitions(VERSION="${PROJECT_VERSION}")
+add_compile_definitions(NIMBLE_ANALYZER_VERSION="${PROJECT_VERSION}")
 
 # Add raylib
 add_subdirectory(external/raylib)

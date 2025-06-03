@@ -30,6 +30,9 @@ public:
 	bool IsReady() const;
 	void Unload();
 
+	void LoadSettings(const std::string& path);
+	void SaveSettings(const std::string& path);
+
 	FileSettings *Settings;
 
 private:

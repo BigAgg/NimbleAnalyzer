@@ -10,8 +10,6 @@ class Project {
 public:
 	void SetName(const std::string& name);
 	std::string GetName() const;
-	void SetParent(const std::string& parent);
-	std::string GetParent() const;
 
 	void AddFilePath(const std::string& path);
 	void RemoveFilePath(const std::string& path);
@@ -25,13 +23,14 @@ public:
 
 	void Unload();
 
+	void Load(const std::string& name);
 	void Save();
+	void Delete();
 
 	FileInfo loadedFile;
 
 private:
 	std::string m_name = "";
-	std::string m_parent = "";
 	std::string m_currentFile = "";
 	std::vector<std::string> m_paths;
 };

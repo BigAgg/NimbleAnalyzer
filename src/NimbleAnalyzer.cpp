@@ -22,6 +22,21 @@ static Project *current_project = &new_project;
 static std::vector<Project> projects;
 static int selected_project = -1;
 
+static void s_LoadProject(const std::string& name) {
+	std::string projectName = Splitlines(name, "\\").second;
+	if (projectName == "")
+		return;
+	projects.push_back(Project());
+	projects.back().SetName(projectName);
+	projects.back().Load(projectName);
+}
+
+static void s_LoadAllProjects() {
+	for (const auto& dirEntry : fs::directory_iterator("projects")) {
+		s_LoadProject(dirEntry.path().string());
+	}
+}
+
 namespace engine {
 	static struct {
 		int windowW = 640;
@@ -45,14 +60,15 @@ namespace engine {
 		fs::create_directory("bin");
 		fs::create_directory("backup");
 		fs::create_directory("fonts");
+		fs::create_directory("projects");
 		// Loading engine settings
 		if (!LoadSettings()) {
 			logging::logwarning("ENGINE::INIT Could not load settings, using default settings instead!");
 		}
 		// Initializing raylib
-#ifdef VERSION
+#ifdef NIMBLE_ANALYZER_VERSION
 		std::string windowName = "NimbleAnalyzer ";
-		windowName += VERSION;
+		windowName += NIMBLE_ANALYZER_VERSION;
 #else
 		std::string windowName = "NimbleAnalyzer";
 #endif
@@ -222,10 +238,15 @@ namespace ui {
 			logging::logwarning("UI::INIT Settings could not be loaded!");
 			logging::loginfo("UI::INIT Using default settings instead.");
 		}
+		// Load Projects
+		s_LoadAllProjects();
 		return true;
 	}
 
 	void Shutdown() {
+		for (auto& project : projects) {
+			project.Save();
+		}
 		if (!SaveSettings()) {
 			logging::logwarning("UI::SHUTDOWN Settings could not be saved!");
 			logging::loginfo("UI::SHUTDOWN Deleting './bin/ui.bin' in case it got corrupted.");
@@ -314,8 +335,10 @@ namespace ui {
 				char buff[256];
 				strncpy_s(buff, name.c_str(), 256);
 				if (ImGui::Selectable(buff, &selected)) {
+					current_project->Save();
 					selected_project = x;
 					current_project = &projects[x];
+					current_project->Load(name);
 					s_hiddenHeaders.clear();
 				}
 				if (selected)
@@ -323,6 +346,7 @@ namespace ui {
 			}
 			ImGui::EndListBox();
 			if (projects.size() > 0 && ImGui::Button("Projekt entfernen")) {
+				current_project->Delete();
 				current_project->Unload();
 				projects.erase(projects.cbegin() + selected_project);
 				selected_project -= 1;
@@ -345,9 +369,14 @@ namespace ui {
 				char buff[256];
 				strncpy_s(buff, p.filename().string().c_str(), 256);
 				if (ImGui::Selectable(buff, &selected)) {
+					current_project->Save();
 					current_project->SelectFile(file);
 					current_project->loadedFile.Unload();
 					current_project->loadedFile.LoadFile(file);
+					fs::path tmpPath = fs::path(file);
+					const std::string tmpstr = tmpPath.filename().string();
+					const std::string projectName = current_project->GetName();
+					current_project->loadedFile.LoadSettings("projects/" + projectName + "/" + tmpstr + ".ini");
 					s_hiddenHeaders.clear();
 				}
 				if (selected)

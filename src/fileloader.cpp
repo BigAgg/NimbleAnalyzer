@@ -250,6 +250,100 @@ void FileInfo::Unload() {
 	m_headeridx = -1;
 }
 
+void FileInfo::LoadSettings(const std::string& path){
+	std::ifstream file(path, std::ios::binary);
+	if (!file) {
+		logging::logwarning("FILELOADER::FileInfo::LoadSettings Could not load File Settings: %s", path.c_str());
+		return;
+	}
+	std::string line;
+	while (std::getline(file, line)) {
+		RemoveAllSubstrings(line, "\n");
+		std::pair<std::string, std::string> lineValues = Splitlines(line, " = ");
+		const std::string header = lineValues.first;
+		const std::string value = lineValues.second;
+		if (header == "m_filename") {
+			m_filename = value;
+		}
+		else if (header == "m_mergefile") {
+			FileInfo mergefile;
+			mergefile.LoadFile(value);
+			Settings->SetMergeFile(mergefile);
+		}
+		else if (header == "m_mergefolderfile") {
+			Settings->SetMergeFolderTemplate(value);
+		}
+		else if (header == "m_dontimportifexistsheader") {
+			Settings->SetDontImportIf(value);
+		}
+		else if (header == "m_mergefolder") {
+			Settings->SetMergeFolder(value);
+		}
+		else if (header == "m_mergeheadersfolder") {
+			const int amount = std::stoi(value);
+			for (int x = 0; x < amount; x++) {
+				std::string tmpLine;
+				std::getline(file, tmpLine);
+				RemoveAllSubstrings(tmpLine, "\n");
+				std::pair<std::string, std::string> headerPair = Splitlines(tmpLine, " := ");
+				Settings->AddFolderHeaderToMerge(headerPair.first, headerPair.second);
+			}
+		}
+		else if (header == "m_mergefolderif") {
+			std::pair<std::string, std::string> mergefolderif = Splitlines(value, " := ");
+			Settings->SetMergeFolderHeaderIf(mergefolderif.first, mergefolderif.second);
+		}
+		else if (header == "m_mergeheaders") {
+			const int amount = std::stoi(value);
+			for (int x = 0; x < amount; x++) {
+				std::string tmpLine;
+				std::getline(file, tmpLine);
+				RemoveAllSubstrings(tmpLine, "\n");
+				std::pair<std::string, std::string> mergeheader = Splitlines(tmpLine, " := ");
+				Settings->AddHeaderToMerge(mergeheader.first, mergeheader.second);
+			}
+		}
+		else if (header == "m_mergeif") {
+			std::pair<std::string, std::string> mergeif = Splitlines(value, " := ");
+			Settings->SetMergeHeaderIf(mergeif.first, mergeif.second);
+		}
+	}
+}
+
+void FileInfo::SaveSettings(const std::string& path){
+	if (!IsReady())
+		return;
+	// Creating the path
+	fs::path filePath = fs::u8path(m_filename);
+	const std::string filename = path + filePath.filename().string() + ".ini";
+	// Opening the file
+	std::ofstream file(filename, std::ios::binary);
+	if (!file) {
+		logging::logwarning("FILELOADER::FileInfo::SaveSettings Could not save File settings, file cannot be opened!");
+		return;
+	}
+	// Saving all Settings to the file
+	file << "m_filename = " << m_filename << '\n';
+	file << "m_mergefile = " << Settings->GetMergeFile().GetFilename() << '\n';
+	file << "m_mergefolderfile = " << Settings->GetMergeFolderTemplate().GetFilename() << '\n';
+	file << "m_dontimportifexistsheader = " << Settings->GetDontImportIf() << '\n';
+	file << "m_mergefolder = " << Settings->GetMergeFolder() << '\n';
+	auto&& mergefHeaders = Settings->GetMergeFolderHeaders();
+	file << "m_mergeheadersfolder = " << mergefHeaders.size() << '\n';
+	for (auto&& pair : mergefHeaders) {
+		file << pair.first << " := " << pair.second << '\n';
+	}
+	auto&& mergefolderif = Settings->GetMergeFolderIf();
+	file << "m_mergefolderif = " << mergefolderif.first << " := " << mergefolderif.second << '\n';
+	auto&& mergeheaders = Settings->GetMergeHeaders();
+	file << "m_mergeheaders = " << mergeheaders.size() << '\n';
+	for (auto&& pair : mergeheaders) {
+		file << pair.first << " := " << pair.second << '\n';
+	}
+	auto&& mergeif = Settings->GetMergeIf();
+	file << "m_mergeif = " << mergeif.first << " := " << mergeif.second << '\n';
+}
+
 void FileInfo::LoadFile(const std::string& filename) {
 	if (IsReady())
 		Unload();
