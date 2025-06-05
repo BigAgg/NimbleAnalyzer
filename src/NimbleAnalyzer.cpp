@@ -751,6 +751,13 @@ namespace ui {
 			DisplayHeaderSettings();
 			ImGui::EndMenu();
 		}
+		if (ImGui::Button((char*)u8"Neuen Datensatz einfügen")) {
+			RowInfo rinfo;
+			for (auto& header : headers) {
+				rinfo.AddData(header, "");
+			}
+			current_project->loadedFile.AddRowData(rinfo);
+		}
 		if (ImGui::BeginMenu("Filteroptionen")) {
 			// Reset filters
 			if (ImGui::Button((char*)u8"Filter zurücksetzen")) {
@@ -926,7 +933,9 @@ namespace ui {
 		// Datenanzeige
 		// Zeichne Überschriften falls nötig
 		if (s_viewmode == "horizontal-noheader") {
-			ImGui::BeginChild("headers", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()), 25.0f});
+			ImGui::BeginChild("headers", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()) + 50.0f, 25.0f});
+			ImGui::Button(" X ");
+			ImGui::SameLine();
 			int idx = 0;
 			for (auto&& header : headers) {
 				auto it = std::find(s_hiddenHeaders.begin(), s_hiddenHeaders.end(), header);
@@ -946,11 +955,18 @@ namespace ui {
 			ImGui::EndChild();
 		}
 		ImGui::Separator();
-		ImGui::BeginChild("dataview", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()), screenH - 125.0f}, 0, flags_nomenu);
+		ImGui::BeginChild("dataview", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()) + 50.0f, screenH - 125.0f}, 0, flags_nomenu);
 		if (s_filteredData.size() == 0 && s_filter == "") {
-			DisplayDataset(data, s_viewmode, s_hiddenHeaders);
 			int x = 0;
 			for (RowInfo& row : data) {
+				ImGui::SetNextItemWidth(6.0f);
+				if (ImGui::Button((" X ##" + std::to_string(x)).c_str())) {
+					current_project->loadedFile.RemoveData(x);
+				}
+				ImGui::SetItemTooltip((char*)u8"Löscht diesen kompletten Eintrag!");
+				if(StrContains(s_viewmode, "horizontal"))
+					ImGui::SameLine();
+				DisplayData(data[x], x, s_viewmode, s_hiddenHeaders);
 				if (row.Changed())
 					current_project->loadedFile.SetRowData(row, x);
 				x++;
@@ -958,6 +974,13 @@ namespace ui {
 		}
 		else {
 			for (std::pair<int, RowInfo> pair : s_filteredData) {
+				ImGui::SetNextItemWidth(6.0f);
+				if (ImGui::Button((" X ##" + std::to_string(pair.first)).c_str())) {
+					current_project->loadedFile.RemoveData(pair.first);
+				}
+				ImGui::SetItemTooltip((char*)u8"Löscht diesen kompletten Eintrag!");
+				if(StrContains(s_viewmode, "horizontal"))
+					ImGui::SameLine();
 				DisplayData(pair.second, pair.first, s_viewmode, s_hiddenHeaders);
 				if (pair.second.Changed()) {
 					current_project->loadedFile.SetRowData(pair.second, pair.first);

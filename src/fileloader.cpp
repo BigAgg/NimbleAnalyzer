@@ -555,7 +555,7 @@ void FileInfo::AddRowData(const RowInfo& rowinfo){
 }
 
 void FileInfo::RemoveData(const int rowIdx){
-	if (rowIdx <= m_rowinfo.size())
+	if (rowIdx >= m_rowinfo.size())
 		return;
 	m_rowinfo.erase(m_rowinfo.begin() + rowIdx);
 }
