@@ -169,8 +169,18 @@ namespace ui {
 	enum UI_MODE {
 		UI_NONE,
 		UI_PROJECT_WINDOW,
-		UI_LOADED_PROJECT_WINDOW,
+		UI_DATA_VIEW_WINDOW,
 		UI_DEFAULT = UI_PROJECT_WINDOW,
+	};
+
+	enum FILTER_MODE {
+		FILTER_NONE,
+		FILTER_GREATER_THAN,
+		FILTER_LOWER_THAN,
+		FILTER_OUT_OF_RANGE,
+		FILTER_IN_RANGE,
+		FILTERS,
+		FILTER_DEFAULT = FILTER_NONE
 	};
 	
 	static Texture folder_icon;
@@ -192,8 +202,25 @@ namespace ui {
 
 	static std::vector<std::string> s_hiddenHeaders;
 	static bool s_ignoreCache = false;
+	static std::string s_viewmode = "horizontal-aboveheader";
+	static std::string s_filter = "";
+	static FILTER_MODE s_filtermode = FILTER_DEFAULT;
+	static struct {
+		float max = 0.0f;
+		float min = 0.0f;
+		std::string header = "";
+	} filterSettings;
+	static std::vector<std::pair<int, RowInfo>> s_filteredData;
+
+	static std::string s_filterlist[FILTERS];
 
 	bool Init() {
+		// initialize filterlist
+		s_filterlist[FILTER_DEFAULT] = "Kein Filter";
+		s_filterlist[FILTER_GREATER_THAN] = (char*)u8"Größer als";
+		s_filterlist[FILTER_LOWER_THAN] = "Kleiner als";
+		s_filterlist[FILTER_OUT_OF_RANGE] = (char*)u8"Außerhalb Toleranz";
+		s_filterlist[FILTER_IN_RANGE] = "Innerhalb Toleranz";
 		// Check if the engine is initialized
 		if (engine::GetErrorcode() != engine::ENGINE_NONE_ERROR) {
 			errorcode = UI_INIT_ERROR;
@@ -233,11 +260,6 @@ namespace ui {
 		else {
 			io.FontDefault = font;
 		}
-		// Loading settings
-		if (!LoadSettings()) {
-			logging::logwarning("UI::INIT Settings could not be loaded!");
-			logging::loginfo("UI::INIT Using default settings instead.");
-		}
 		// Load Projects
 		s_LoadAllProjects();
 		return true;
@@ -247,28 +269,13 @@ namespace ui {
 		for (auto& project : projects) {
 			project.Save();
 		}
-		if (!SaveSettings()) {
-			logging::logwarning("UI::SHUTDOWN Settings could not be saved!");
-			logging::loginfo("UI::SHUTDOWN Deleting './bin/ui.bin' in case it got corrupted.");
-			std::remove("bin/ui.bin");
-		}
+		UnloadTexture(folder_icon);
+		UnloadTexture(open_file_icon);
+		UnloadTexture(file_icon);
+		UnloadTexture(delete_file_icon);
+		UnloadTexture(save_icon);
+		UnloadTexture(save_as_icon);
 		rlImGuiShutdown();
-	}
-
-	bool LoadSettings() {
-		std::ifstream file("bin/ui.bin", std::ios::binary);
-		if (!file)
-			return false;
-		file.read((char*)&uiSettings, sizeof(uiSettings));
-		return true;
-	}
-
-	bool SaveSettings() {
-		std::ofstream file("bin/ui.bin", std::ios::binary);
-		if (!file)
-			return false;
-		file.write((char*)&uiSettings, sizeof(uiSettings));
-		return true;
 	}
 
 	static void MainMenu() {
@@ -277,6 +284,10 @@ namespace ui {
 		if (ImGui::Button("Projekt wechseln")) {
 			uiSettings.ui_mode = UI_DEFAULT;
 			new_project = Project();
+		}
+		// Datenübersicht
+		if (ImGui::Button((char*)u8"Datenübersicht")) {
+			uiSettings.ui_mode = UI_DATA_VIEW_WINDOW;
 		}
 		// Error output
 		if (ImGui::Button("Errors in txt")) {
@@ -429,14 +440,15 @@ namespace ui {
 			}
 			ImGui::SetItemTooltip((char*)u8"Wähle Template");
 			ImGui::SameLine();
-			if (ImGui::Checkbox("Ignore cache", &s_ignoreCache)) {
+			if (ImGui::Checkbox("Cache ignorieren", &s_ignoreCache)) {
 				current_project->loadedFile.Settings->SetMergeFolder(current_project->loadedFile.Settings->GetMergeFolder(), s_ignoreCache);
 			}
+			ImGui::SetItemTooltip((char*)u8"Ignoriert die Cache Datei für diesen Merge-Ordner\nDas bedeutet, dass schon eingebundene Dateien erneut\nzum einbinden überprüft werden!");
 		}
 		// Select single mergefile
 		fs::path filepath = current_project->loadedFile.Settings->GetMergeFile().GetFilename();
 		ImGui::Text("Aktuelle Mergefile: %s", filepath.filename().string().c_str());
-		if (ImGui::Button("Neue Mergefile")) {
+		if (rlImGuiImageButtonSize("Neue Mergefile", &file_icon, {30.0f, 30.0f})) {
 			std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
 			if (filename != "") {
 				FileInfo mergefile;
@@ -446,6 +458,7 @@ namespace ui {
 				}
 			}
 		}
+		ImGui::SetItemTooltip((char*)u8"Neue Mergefile auswählen");
 	}
 
 	static void DisplayHeaderMergeSettings() {
@@ -657,7 +670,7 @@ namespace ui {
 		}
 		ImGui::BeginChild("Dataview", { screenW, screenH - 600 }, 0, flags_nomenu);
 		// Drawing the data for testing
-		if (current_project->loadedFile.Settings) {
+		if (current_project->loadedFile.IsReady()) {
 			ImGui::Separator();
 			std::vector<RowInfo>&& data = current_project->loadedFile.GetData();
 			DisplayDataset(data, "horizontal-aboveheader", s_hiddenHeaders);
@@ -674,6 +687,261 @@ namespace ui {
 		ImGui::End();
 	}
 
+	void DataViewWindow() {
+		if (!current_project->loadedFile.IsReady()) {
+			uiSettings.ui_mode = UI_DEFAULT;
+			return;
+		}
+		// Collecting the dataset
+		std::vector<RowInfo>&& data = current_project->loadedFile.GetData();
+		auto&& headers = current_project->loadedFile.GetHeaderNames();
+		// Setting up window flaghs and settings
+		int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_HorizontalScrollbar;
+		int flags_nomenu = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_HorizontalScrollbar;
+		float screenW = static_cast<float>(GetScreenWidth());
+		float screenH = static_cast<float>(GetScreenHeight());
+		ImGui::SetNextWindowPos({ 0.0f, 22.0f });
+		ImGui::SetNextWindowSize({ static_cast<float>(screenW), static_cast<float>(screenH) - 22.0f });
+		// Beginning the window
+		ImGui::Begin((char*)u8"Datenübersicht", nullptr, flags);
+		// Mainmenu of this window
+		ImGui::BeginMenuBar();
+		if (ImGui::BeginMenu("Ansicht")) {
+			if (ImGui::Button("Horizontal Einzel Header")) {
+				s_viewmode = "horizontal-noheader";
+			}
+			if (ImGui::Button("Horizontal")) {
+				s_viewmode = "horizontal-aboveheader";
+			}
+			if (ImGui::Button("Vertikal R")) {
+				s_viewmode = "vertical-rightheader";
+			}
+			if (ImGui::Button("Vertikal L")) {
+				s_viewmode = "vertical-leftheader";
+			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Header Ausblenden")) {
+			DisplayHeaderSettings();
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Filteroptionen")) {
+			// Reset filters
+			if (ImGui::Button((char*)u8"Filter zurücksetzen")) {
+				s_filter = "";
+				s_filteredData.clear();
+				filterSettings.header = "";
+				filterSettings.max = 0.0f;
+				filterSettings.min = 0.0f;
+			}
+			// save filtered data to file
+			if (ImGui::Button("Gefilterte Daten exportieren") && s_filteredData.size() > 0) {
+				const std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
+				if (filename != "") {
+					FileInfo saveFile;
+					saveFile.SetHeaderInfo(current_project->loadedFile.GetHeaderInfo());
+					for (std::pair<int, RowInfo> pair : s_filteredData) {
+						saveFile.AddRowData(pair.second);
+					}
+					saveFile.SaveFile(filename);
+					saveFile.Unload();
+				}
+			}
+			// Search for filter
+			if (ImGui::InputStringWithHint(s_filter, "Filter", "stichwort")) {
+				s_filteredData.clear();
+				// first = index inside data, second = actual RowInfo
+				const std::vector<std::string> headernames = current_project->loadedFile.GetHeaderNames();
+				for (int x = 0; x < data.size(); x++) {
+					RowInfo &row = data[x];
+					bool hasFilter = false;
+					for (const std::string& header : headernames) {
+						const std::string value = row.GetData(header);
+						if (StrContains(value, s_filter)) {
+							hasFilter = true;
+							break;
+						}
+					}
+					if (hasFilter) {
+						s_filteredData.push_back(std::make_pair(x, row));
+					}
+				}
+			}
+			// Mathematical filter options
+			ImGui::SeparatorText("Mathematische Filteroptionen");
+			if (ImGui::BeginCombo("Option", s_filterlist[s_filtermode].c_str())) {
+				for (int x = 0; x < FILTERS; x++) {
+					const std::string fl = s_filterlist[x];
+					bool selected = (x == s_filtermode);
+					if (ImGui::Selectable(fl.c_str(), &selected)) {
+						s_filtermode = static_cast<FILTER_MODE>(x);
+					}
+					if (selected)
+						ImGui::SetItemDefaultFocus();
+				}
+				ImGui::EndCombo();
+			}
+			if (ImGui::BeginCombo("Header filtern", filterSettings.header.c_str())) {
+				bool selected = (filterSettings.header == "NONE" || filterSettings.header == "");
+				if (ImGui::Selectable("NONE", &selected))
+					filterSettings.header = "NONE";
+				if (selected)
+					ImGui::SetItemDefaultFocus();
+				for (auto&& header : headers) {
+					if (Splitlines(header, " ##").first == "")
+						continue;
+					selected = (header == filterSettings.header);
+					if (ImGui::Selectable(header.c_str(), &selected))
+						filterSettings.header = header;
+					if (selected)
+						ImGui::SetItemDefaultFocus();
+				}
+				ImGui::EndCombo();
+			}
+			switch (s_filtermode) {
+			case FILTER_GREATER_THAN:
+				if (ImGui::InputFloat("Max", &filterSettings.max)) {
+					s_filteredData.clear();
+					for (int x = 0; x < data.size(); x++) {
+						RowInfo &rinfo = data[x];
+						const std::string value = rinfo.GetData(filterSettings.header);
+						if (value == "")
+							continue;
+						else if (!IsNumber(value) && !IsInteger(value))
+							continue;
+						float value_number = std::stof(value);
+						if (value_number > filterSettings.max)
+							s_filteredData.push_back(std::make_pair(x,rinfo));
+					}
+				}
+				break;
+			case FILTER_LOWER_THAN:
+				if (ImGui::InputFloat("Min", &filterSettings.min)) {
+					s_filteredData.clear();
+					for (int x = 0; x < data.size(); x++) {
+						RowInfo &rinfo = data[x];
+						const std::string value = rinfo.GetData(filterSettings.header);
+						if (value == "")
+							continue;
+						else if (!IsNumber(value) && !IsInteger(value))
+							continue;
+						float value_number = std::stof(value);
+						if (value_number < filterSettings.min)
+							s_filteredData.push_back(std::make_pair(x,rinfo));
+					}
+				}
+				break;
+			case FILTER_OUT_OF_RANGE:
+				if (ImGui::InputFloat("Min", &filterSettings.min)) {
+					s_filteredData.clear();
+					for (int x = 0; x < data.size(); x++) {
+						RowInfo &rinfo = data[x];
+						const std::string value = rinfo.GetData(filterSettings.header);
+						if (value == "")
+							continue;
+						else if (!IsNumber(value) && !IsInteger(value))
+							continue;
+						float value_number = std::stof(value);
+						if (value_number < filterSettings.min || value_number > filterSettings.max)
+							s_filteredData.push_back(std::make_pair(x,rinfo));
+					}
+				}
+				if (ImGui::InputFloat("Max", &filterSettings.max)) {
+					s_filteredData.clear();
+					for (int x = 0; x < data.size(); x++) {
+						RowInfo &rinfo = data[x];
+						const std::string value = rinfo.GetData(filterSettings.header);
+						if (value == "")
+							continue;
+						else if (!IsNumber(value) && !IsInteger(value))
+							continue;
+						float value_number = std::stof(value);
+						if (value_number < filterSettings.min || value_number > filterSettings.max)
+							s_filteredData.push_back(std::make_pair(x,rinfo));
+					}
+				}
+				break;
+			case FILTER_IN_RANGE:
+				if (ImGui::InputFloat("Min", &filterSettings.min)) {
+					s_filteredData.clear();
+					for (int x = 0; x < data.size(); x++) {
+						RowInfo &rinfo = data[x];
+						const std::string value = rinfo.GetData(filterSettings.header);
+						if (value == "")
+							continue;
+						else if (!IsNumber(value) && !IsInteger(value))
+							continue;
+						float value_number = std::stof(value);
+						if (value_number > filterSettings.min && value_number < filterSettings.max)
+							s_filteredData.push_back(std::make_pair(x,rinfo));
+					}
+				}
+				if (ImGui::InputFloat("Max", &filterSettings.max)) {
+					s_filteredData.clear();
+					for (int x = 0; x < data.size(); x++) {
+						RowInfo &rinfo = data[x];
+						const std::string value = rinfo.GetData(filterSettings.header);
+						if (value == "")
+							continue;
+						else if (!IsNumber(value) && !IsInteger(value))
+							continue;
+						float value_number = std::stof(value);
+						if (value_number > filterSettings.min && value_number < filterSettings.max)
+							s_filteredData.push_back(std::make_pair(x,rinfo));
+					}
+				}
+				break;
+			default:
+				break;
+			}
+			ImGui::EndMenu();
+		}
+		ImGui::EndMenuBar();
+		// Datenanzeige
+		// Zeichne Überschriften falls nötig
+		if (s_viewmode == "horizontal-noheader") {
+			ImGui::BeginChild("headers", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()), 25.0f});
+			int idx = 0;
+			for (auto&& header : headers) {
+				auto it = std::find(s_hiddenHeaders.begin(), s_hiddenHeaders.end(), header);
+				if (it != s_hiddenHeaders.end())
+					continue;
+				std::string splitheader = Splitlines(header, " ##").first;
+				if (splitheader == "") {
+					continue;
+				}
+				if(header != headers.front() && idx > 0)
+					ImGui::SameLine();
+				ImGui::SetNextItemWidth(DEFAULT_INPUT_WIDTH);
+				ImGui::InputString(splitheader, "##" + header, ImGuiInputTextFlags_ReadOnly);
+				ImGui::SetItemTooltip(splitheader.c_str());
+				idx++;
+			}
+			ImGui::EndChild();
+		}
+		ImGui::Separator();
+		ImGui::BeginChild("dataview", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()), screenH - 125.0f}, 0, flags_nomenu);
+		if (s_filteredData.size() == 0 && s_filter == "") {
+			DisplayDataset(data, s_viewmode, s_hiddenHeaders);
+			int x = 0;
+			for (RowInfo& row : data) {
+				if (row.Changed())
+					current_project->loadedFile.SetRowData(row, x);
+				x++;
+			}
+		}
+		else {
+			for (std::pair<int, RowInfo> pair : s_filteredData) {
+				DisplayData(pair.second, pair.first, s_viewmode, s_hiddenHeaders);
+				if (pair.second.Changed()) {
+					current_project->loadedFile.SetRowData(pair.second, pair.first);
+				}
+			}
+		}
+		ImGui::EndChild();
+		ImGui::End();
+	}
+
 	void HandleUI() {
 		rlImGuiBegin();
 
@@ -682,6 +950,9 @@ namespace ui {
 		switch (uiSettings.ui_mode) {
 		case UI_PROJECT_WINDOW:
 			ProjectWindow();
+			break;
+		case UI_DATA_VIEW_WINDOW:
+			DataViewWindow();
 			break;
 		case UI_NONE:
 		default:

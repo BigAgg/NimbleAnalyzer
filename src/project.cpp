@@ -80,7 +80,7 @@ void Project::Load(const std::string& name) {
 	std::string line;
 	std::getline(file, line);
 	RemoveAllSubstrings(line, "\n");
-	m_currentFile = line;
+	const std::string selectedFile = line;
 	std::getline(file, line);
 	RemoveAllSubstrings(line, "\n");
 	const int amount = std::stoi(line);
@@ -91,6 +91,12 @@ void Project::Load(const std::string& name) {
 		if(line != "")
 			m_paths.push_back(line);
 	}
+	SelectFile(selectedFile);
+	loadedFile.LoadFile(m_currentFile);
+	fs::path tmpPath = fs::path(m_currentFile);
+	const std::string tmpstr = tmpPath.filename().string();
+	const std::string projectName = GetName();
+	loadedFile.LoadSettings("projects/" + projectName + "/" + tmpstr + ".ini");
 }
 
 void Project::Save() {

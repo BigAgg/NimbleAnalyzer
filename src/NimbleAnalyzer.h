@@ -38,8 +38,6 @@ namespace ui {
 	UI_ERROR GetErrorcode();
 	bool Init();
 	void Shutdown();
-	bool LoadSettings();
-	bool SaveSettings();
 
 	void HandleUI();
 };

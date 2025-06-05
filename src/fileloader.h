@@ -12,8 +12,7 @@ class FileInfo;
 class FileInfo {
 public:
 	void LoadFile(const std::string& filename);
-	void SaveFile();
-	void SaveFileAs(const std::string& filename);
+	void SaveFile(const std::string& filename = "");
 	void SaveFileAs(const std::string& sourcefile, const std::string& destfile);
 	void CreateSheetData();
 	std::string GetFilename() const;
@@ -21,11 +20,14 @@ public:
 	std::pair<int, int> GetHeaderIndex(const std::string& header);
 	void GetHeaderIndex(const std::string& header, int* x, int* y);
 	std::vector<std::string> GetHeaderNames() const;
+	std::vector<std::pair<std::string, std::pair<int, int>>> GetHeaderInfo();
+	void SetHeaderInfo(std::vector<std::pair<std::string, std::pair<int, int>>> headerinfo);
 
 	RowInfo GetRowdata(const int rowIdx);
 	std::vector<RowInfo> GetData();
 	void SetRowData(const RowInfo& rowinfo, const int rowIdx);
 	void AddRowData(const RowInfo& rowinfo);
+	void RemoveData(const int rowIdx);
 
 	bool IsReady() const;
 	void Unload();

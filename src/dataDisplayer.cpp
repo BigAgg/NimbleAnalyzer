@@ -3,7 +3,6 @@
 #include "utils.h"
 #include "ui_helper.h"
 
-#define DEFAULT_INPUT_WIDTH 175.0f
 
 void DisplayData(RowInfo &data, const unsigned int identifier, const std::string &mode, const std::vector<std::string> &hiddenHeaders) {
 	// Drawing vertical with headers on right side
@@ -21,6 +20,7 @@ void DisplayData(RowInfo &data, const unsigned int identifier, const std::string
 			ImGui::SetNextItemWidth(DEFAULT_INPUT_WIDTH);
 			if(ImGui::InputStringWithHint(value, label, headersplit.c_str()))
 				data.UpdateData(rdata.first, value);
+			ImGui::SetItemTooltip(headersplit.c_str());
 			headerfix++;
 		}
 		ImGui::Separator();
@@ -37,12 +37,13 @@ void DisplayData(RowInfo &data, const unsigned int identifier, const std::string
 			std::string headersplit = Splitlines(rdata.first, " ##").first;
 			std::string label = "## " + headersplit + std::to_string(identifier) + std::to_string(headerfix);
 			std::string value = rdata.second;
-			ImGui::Text("%s", rdata.first.c_str());
+			ImGui::Text("%s", headersplit.c_str());
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(DEFAULT_INPUT_WIDTH);
 			label = "## " + label;
 			if (ImGui::InputStringWithHint(value, label, headersplit.c_str()))
 				data.UpdateData(rdata.first, value);
+			ImGui::SetItemTooltip(headersplit.c_str());
 			headerfix++;
 		}
 		ImGui::Separator();
@@ -55,9 +56,10 @@ void DisplayData(RowInfo &data, const unsigned int identifier, const std::string
 		for (auto& rdata : dataset) {
 			auto it = std::find(hiddenHeaders.begin(), hiddenHeaders.end(), rdata.first);
 			if (it != hiddenHeaders.end()) {
-				if (*it == rdata.first)
-					continue;
+				continue;
 			}
+			if (rdata != dataset.front() && headerfix > 0)
+				ImGui::SameLine();
 			std::string headersplit = Splitlines(rdata.first, " ##").first;
 			std::string label = "## " + headersplit + std::to_string(identifier) + std::to_string(headerfix);
 			std::string childname = label + "_child" + std::to_string(identifier);
@@ -68,14 +70,41 @@ void DisplayData(RowInfo &data, const unsigned int identifier, const std::string
 			if (ImGui::InputStringWithHint(value, label, headersplit.c_str())) {
 				data.UpdateData(rdata.first, value);
 			}
+			ImGui::SetItemTooltip(headersplit.c_str());
 			ImGui::EndChild();
-			if (rdata != dataset.back())
-				ImGui::SameLine();
 			headerfix++;
 		}
 		ImGui::Separator();
 		//ImGui::EndChild();
 	}
+	// Drawing horizontal without headers (Should be drawn before this)
+	else if (mode == "horizontal-noheader") {
+		auto&& dataset = data.GetData();
+		int headerfix = 0;
+		//ImGui::BeginChild("horizontal-aboveheader-dataDisplayer", { dataset.size() * DEFAULT_INPUT_WIDTH + DEFAULT_INPUT_WIDTH, dataset.size() * 50.0f });
+		for (auto& rdata : dataset) {
+			auto it = std::find(hiddenHeaders.begin(), hiddenHeaders.end(), rdata.first);
+			if (it != hiddenHeaders.end()) {
+				continue;
+			}
+			if (rdata != dataset.front() && headerfix > 0)
+				ImGui::SameLine();
+			std::string headersplit = Splitlines(rdata.first, " ##").first;
+			std::string label = "## " + headersplit + std::to_string(identifier) + std::to_string(headerfix);
+			std::string childname = label + "_child" + std::to_string(identifier);
+			std::string value = rdata.second;
+			ImGui::BeginChild(childname.c_str(), {DEFAULT_INPUT_WIDTH, 25.0f});
+			ImGui::SetNextItemWidth(DEFAULT_INPUT_WIDTH);
+			if (ImGui::InputStringWithHint(value, label, headersplit.c_str())) {
+				data.UpdateData(rdata.first, value);
+			}
+			ImGui::SetItemTooltip(headersplit.c_str());
+			ImGui::EndChild();
+			headerfix++;
+		}
+		ImGui::Separator();
+	}
+
 }
 
 void DisplayDataset(std::vector<RowInfo>& data, const std::string& mode, const std::vector<std::string>& hiddenHeaders) {

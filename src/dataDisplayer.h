@@ -3,6 +3,8 @@
 #include "fileloader.h"
 #include <vector>
 
+#define DEFAULT_INPUT_WIDTH 175.0f
+
 enum DATA_DISPLAY_MODES {
 	DATA_DISPLAY_MODE_NONE,
 	DATA_DISPLAY_MODE_TOP_TO_BOT,

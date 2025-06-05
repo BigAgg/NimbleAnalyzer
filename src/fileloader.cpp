@@ -410,12 +410,12 @@ void FileInfo::LoadFile(const std::string& filename) {
 	m_isready = true;
 }
 
-void FileInfo::SaveFile() {
-	s_SaveExcelSheet(m_filename, m_sheetData, false);
-}
-
-void FileInfo::SaveFileAs(const std::string& filename){
-	s_SaveExcelSheet(filename, m_sheetData);
+void FileInfo::SaveFile(const std::string& filename) {
+	CreateSheetData();
+	if (filename == "")
+		s_SaveExcelSheet(m_filename, m_sheetData, false);
+	else
+		s_SaveExcelSheet(filename, m_sheetData, true);
 }
 
 void FileInfo::SaveFileAs(const std::string& sourcefile, const std::string& destfile) {
@@ -423,12 +423,10 @@ void FileInfo::SaveFileAs(const std::string& sourcefile, const std::string& dest
 		logging::logwarning("FILELOADER::FileInfo::SaveFileAs File was never loaded correctly. No Data to save");
 		return;
 	}
-	fs::path source_path = fs::u8path(sourcefile);
-	fs::path dest_path = fs::u8path(destfile);
 
 	CreateSheetData();
 
-	s_SaveExcelSheet(destfile, m_sheetData, true, sourcefile);
+	s_SaveExcelSheet(destfile, m_sheetData, false, sourcefile);
 }
 
 void FileInfo::CreateSheetData() {
@@ -436,37 +434,35 @@ void FileInfo::CreateSheetData() {
 		return;
 	}
 	if (m_sheetData.size() <= 0) {
-		return;
+		std::vector<std::string> headerRow;
+		headerRow.push_back("DATA");
+		RowInfo tmp = m_rowinfo[0];
+		for (auto& header : GetHeaderNames()) {
+			const std::string fixedHeader = Splitlines(header, " ##").first;
+			headerRow.push_back(fixedHeader);
+		}
+		m_sheetData.push_back(headerRow);
+		m_headeridx = 0;
+		for (auto& hinfo : m_headerinfo) {
+			hinfo.second.first = 0;
+		}
 	}
+	m_sheetData.resize(m_headeridx+1);
 	size_t header_size = m_sheetData[m_headeridx].size();
 	for (int x = 0; x < m_rowinfo.size(); x++) {
 		const RowInfo& ri = m_rowinfo[x];
 		auto&& rdata = ri.GetData();
-		if (x + m_headeridx + 1 < m_sheetData.size()) {
-			for (auto& pair : rdata) {
-				int header_x = -1, header_y = -1;
-				GetHeaderIndex(pair.first, &header_x, &header_y);
-				if (header_x != m_headeridx)
-					continue;
-				if (header_y <= 0)
-					continue;
-				header_x += x + 1;
-				m_sheetData[header_x][header_y] = pair.second;
-			}
+		std::vector<std::string> rowinfo(m_headerinfo.size() + 1);
+		for (auto& pair : rdata) {
+			int header_x = -1, header_y = -1;
+			GetHeaderIndex(pair.first, &header_x, &header_y);
+			if (header_x != m_headeridx)
+				continue;
+			if (header_y <= 0)
+				continue;
+			rowinfo[header_y] = pair.second;
 		}
-		else {
-			std::vector<std::string> rowinfo(m_headerinfo.size() + 1);
-			for (auto& pair : rdata) {
-				int header_x = -1, header_y = -1;
-				GetHeaderIndex(pair.first, &header_x, &header_y);
-				if (header_x != m_headeridx)
-					continue;
-				if (header_y <= 0)
-					continue;
-				rowinfo[header_y] = pair.second;
-			}
-			m_sheetData.push_back(rowinfo);
-		}
+		m_sheetData.push_back(rowinfo);
 	}
 }
 
@@ -501,6 +497,14 @@ std::vector<std::string> FileInfo::GetHeaderNames() const {
 	return headernames;
 }
 
+std::vector<std::pair<std::string, std::pair<int, int>>> FileInfo::GetHeaderInfo(){
+	return m_headerinfo;
+}
+
+void FileInfo::SetHeaderInfo(std::vector<std::pair<std::string, std::pair<int, int>>> headerinfo){
+	m_headerinfo = headerinfo;
+}
+
 RowInfo FileInfo::GetRowdata(const int rowIdx){
 	if(rowIdx >= m_rowinfo.size())
 		return RowInfo();
@@ -524,6 +528,12 @@ void FileInfo::SetRowData(const RowInfo& rowinfo, const int rowIdx){
 
 void FileInfo::AddRowData(const RowInfo& rowinfo){
 	m_rowinfo.push_back(rowinfo);
+}
+
+void FileInfo::RemoveData(const int rowIdx){
+	if (rowIdx <= m_rowinfo.size())
+		return;
+	m_rowinfo.erase(m_rowinfo.begin() + rowIdx);
 }
 
 bool FileInfo::IsReady() const{
