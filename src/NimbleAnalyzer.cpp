@@ -249,7 +249,7 @@ namespace ui {
 		// Initialize rlimgui
 		rlImGuiSetup(false);
 		ImGui::StyleColorsLight();
-		// Setup custom font
+		// Setup custom font and
 		ImGuiIO& io = ImGui::GetIO();
 		ImFont* font = io.Fonts->AddFontFromFileTTF("fonts/JetBrainsMonoNerdFont-Bold.ttf", 18.0f);
 		if (!font) {
@@ -260,6 +260,8 @@ namespace ui {
 		else {
 			io.FontDefault = font;
 		}
+		// Remove imgui.ini
+		io.IniFilename = nullptr;
 		// Load Projects
 		s_LoadAllProjects();
 		return true;
