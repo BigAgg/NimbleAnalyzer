@@ -6,8 +6,8 @@ It is written in C++ using [Raylib](https://www.raylib.com/), [ImGui](https://gi
 
 ## Cloning the repo:
 ```sh
-git clone --recurse-submodules https://github.com/BigAgg/FlashLampAnalyzer.git
-cd FlashLampAnalyzer
+git clone --recurse-submodules https://github.com/BigAgg/NimbleAnalyzer.git
+cd NimbleAnalyzer
 git submodule update --init --recursive
 ```
 

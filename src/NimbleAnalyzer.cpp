@@ -74,6 +74,8 @@ namespace engine {
 
 	static ENGINE_ERROR errorcode = ENGINE_UNINITIALIZED_ERROR;
 
+	static Image s_icon;
+
 	ENGINE_ERROR GetErrorcode() {
 		return errorcode;
 	}
@@ -98,6 +100,9 @@ namespace engine {
 #endif
 		InitWindow(engineSettings.windowW, engineSettings.windowH, windowName.c_str());
 		SetWindowState(FLAG_WINDOW_RESIZABLE);
+		s_icon = LoadImage("NimbleAnalyzer.png");
+		if (IsImageValid(s_icon))
+			SetWindowIcon(s_icon);
 		if (!IsWindowReady()) {
 			logging::logerror("ENGINE::INIT Raylib could not be initialized!");
 			errorcode = ENGINE_RAYLIB_ERROR;
@@ -121,6 +126,8 @@ namespace engine {
 	}
 
 	void Shutdown() {
+		// Unload images
+		UnloadImage(s_icon);
 		// Updating current Monitor position to load window at same position
 		engineSettings.device = GetCurrentMonitor();
 		Vector2 windowPos = GetWindowPosition();
@@ -203,6 +210,8 @@ namespace ui {
 		FILTER_LOWER_THAN,
 		FILTER_OUT_OF_RANGE,
 		FILTER_IN_RANGE,
+		FILTER_EMPTY,
+		FILTER_NOT_EMPTY,
 		FILTERS,
 		FILTER_DEFAULT = FILTER_NONE
 	};
@@ -245,6 +254,8 @@ namespace ui {
 		s_filterlist[FILTER_LOWER_THAN] = "Kleiner als";
 		s_filterlist[FILTER_OUT_OF_RANGE] = (char*)u8"Außerhalb Toleranz";
 		s_filterlist[FILTER_IN_RANGE] = "Innerhalb Toleranz";
+		s_filterlist[FILTER_EMPTY] = "Leeres Feld";
+		s_filterlist[FILTER_NOT_EMPTY] = (char*)u8"Ausgefülltes Feld";
 		// Check if the engine is initialized
 		if (engine::GetErrorcode() != engine::ENGINE_NONE_ERROR) {
 			errorcode = UI_INIT_ERROR;
@@ -924,7 +935,32 @@ namespace ui {
 					}
 				}
 				break;
+			case FILTER_EMPTY:
+				if (ImGui::Button("Filter Anwenden")) {
+					s_filteredData.clear();
+					for (int x = 0; x < data.size(); x++) {
+						RowInfo& rinfo = data[x];
+						const std::string value = rinfo.GetData(filterSettings.header);
+						if (value == "")
+							s_filteredData.push_back(std::make_pair(x, rinfo));
+					}
+				}
+				break;
+			case FILTER_NOT_EMPTY:
+				if (ImGui::Button("Filter Anwenden")) {
+					s_filteredData.clear();
+					for (int x = 0; x < data.size(); x++) {
+						RowInfo& rinfo = data[x];
+						const std::string value = rinfo.GetData(filterSettings.header);
+						if (value != "")
+							s_filteredData.push_back(std::make_pair(x, rinfo));
+					}
+				}
+				break;
+			case FILTER_NONE:
 			default:
+				if (s_filteredData.size() > 0 && s_filter == "")
+					s_filteredData.clear();
 				break;
 			}
 			ImGui::EndMenu();

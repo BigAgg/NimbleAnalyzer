@@ -6,6 +6,9 @@ set(PROJECT_VERSION "0.0.3")
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 
+# Setting resources
+set(WINDOWS_ICON_RESOURCE "${CMAKE_CURRENT_SOURCE_DIR}/resources.rc")
+
 # Setting compile definitions
 add_compile_definitions(NIMBLE_ANALYZER_VERSION="${PROJECT_VERSION}")
 
@@ -47,7 +50,7 @@ source_group("Source Files" FILES ${SOURCE_FILES})
 source_group("Header Files" FILES ${HEADER_FILES})
 
 # Building target 
-add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES})
+add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES} ${WINDOWS_ICON_RESOURCE})
 # Setup buildflags
 if(WIN32)
   if(MSVC)
