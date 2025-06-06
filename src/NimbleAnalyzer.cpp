@@ -362,6 +362,7 @@ namespace ui {
 					}
 				}
 				if (anlegen) {
+					current_project->Save();
 					projects.push_back(new_project);
 					new_project = Project();
 					current_project = &projects.back();
