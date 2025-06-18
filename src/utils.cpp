@@ -79,6 +79,7 @@ bool IsNumber(const std::string& input) {
 }
 
 bool IsInteger(const std::string& input) {
+	if (input.size() == 0) return false;
 	// First make sure there are no invalid characters
 	size_t start = 0;
 	if (input[0] == '+' || input[0] == '-')

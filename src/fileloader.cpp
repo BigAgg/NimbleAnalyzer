@@ -142,16 +142,13 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 			std::vector<std::string> rowdata;
 			for (auto cell : rows) {
 				std::string value = cell.to_string();
-				if (!IsInteger(value) && IsNumber(value)) {
-					if (cell.has_value() && cell.data_type() == xlnt::cell_type::number) {
-						float number = cell.value<float>();
+				if (!IsInteger(value) && cell.has_value() && cell.data_type() == xlnt::cell_type::number) {
+					float number = cell.value<float>();
 
-						std::ostringstream oss;
-						oss << std::fixed << std::setprecision(3) << number;
+					std::ostringstream oss;
+					oss << std::fixed << std::setprecision(3) << number;
 
-						value = oss.str();
-						std::replace(value.begin(), value.end(), '.', ',');
-					}
+					value = oss.str();
 					std::replace(value.begin(), value.end(), '.', ',');
 				}
 				rowdata.push_back(value);
@@ -225,6 +222,35 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 		}
 	}
 	xlnt::worksheet ws = wb.active_sheet();
+	logging::logwarning("saving %d rows", excelSheet.size());
+	// clearing everything that comes after the sheet
+	// Determine actual size
+	const std::size_t max_row = excelSheet.size();
+	std::size_t max_col = 0;
+	for (const auto& row : excelSheet) {
+		if (row.size() > max_col)
+			max_col = row.size();
+	}
+
+	// Get the worksheet's current used range
+	auto used_range = ws.calculate_dimension();
+	const std::size_t used_max_row = used_range.bottom_right().row();
+	const std::size_t used_max_col = used_range.bottom_right().column().index;
+
+	// Clear rows beyond max_row
+	for (std::size_t row = max_row + 1; row <= used_max_row; ++row) {
+		for (std::size_t col = 1; col <= used_max_col; ++col) {
+			ws.cell(xlnt::cell_reference(col, row)).clear_value();
+		}
+	}
+
+	// Clear columns beyond max_col in used rows
+	for (std::size_t row = 1; row <= max_row; ++row) {
+		for (std::size_t col = max_col + 1; col <= used_max_col; ++col) {
+			ws.cell(xlnt::cell_reference(col, row)).clear_value();
+		}
+	}
+
 	for (int x = 0; x < excelSheet.size(); x++) {
 		for (int y = 0; y < excelSheet[x].size(); y++) {
 			xlnt::cell_reference cell_ref = xlnt::cell_reference(y + 1, x + 1);
@@ -238,10 +264,6 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 				}
 			}
 			std::string value = excelSheet[x][y];
-			//if (value == dest_cell.to_string())
-				//skip = true;
-			if (value == "")
-				skip = true;
 			if (skip)
 				continue;
 			// Asign cell integer value

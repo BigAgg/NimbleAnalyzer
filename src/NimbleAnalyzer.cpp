@@ -511,6 +511,7 @@ namespace ui {
 	static void DisplayHeaderMergeSettings() {
 		if (ImGui::Button("Daten Mergen")) {
 			current_project->loadedFile.Settings->MergeFiles();
+			s_ignoreCache = false;
 		}
 
 		auto headers = current_project->loadedFile.GetHeaderNames();
@@ -606,6 +607,7 @@ namespace ui {
 		ImGui::BeginMenuBar();
 		if (ImGui::Button("Daten Mergen")) {
 			current_project->loadedFile.Settings->MergeFiles();
+			s_ignoreCache = false;
 		}
 		ImGui::Text("Daten Ignorieren wenn Header");
 		if (ImGui::BeginCombo("## Header ignorieren", dontimportif.c_str())) {
