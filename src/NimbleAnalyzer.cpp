@@ -31,6 +31,8 @@ SOFTWARE.
 #include <filesystem>
 #include <fstream>
 #include <vector>
+#include <chrono>
+#include <thread>
 
 #include "logging.h"
 #include "project.h"
@@ -57,7 +59,9 @@ static void s_LoadProject(const std::string& name) {
 
 static void s_LoadAllProjects() {
 	for (const auto& dirEntry : fs::directory_iterator("projects")) {
-		s_LoadProject(dirEntry.path().string());
+		const std::u8string u8path = dirEntry.path().u8string();
+		const std::string strpath(u8path.begin(), u8path.end());
+		s_LoadProject(strpath);
 	}
 }
 
@@ -185,6 +189,11 @@ namespace engine {
 	}
 
 	void Render() {
+		if (!IsWindowFocused()) {
+			PollInputEvents();
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			return;
+		}
 		BeginDrawing();
 		ClearBackground(BLACK);
 		ui::HandleUI();

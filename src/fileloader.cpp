@@ -142,7 +142,16 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 			std::vector<std::string> rowdata;
 			for (auto cell : rows) {
 				std::string value = cell.to_string();
-				if (IsNumber(value)) {
+				if (!IsInteger(value) && IsNumber(value)) {
+					if (cell.has_value() && cell.data_type() == xlnt::cell_type::number) {
+						float number = cell.value<float>();
+
+						std::ostringstream oss;
+						oss << std::fixed << std::setprecision(3) << number;
+
+						value = oss.str();
+						std::replace(value.begin(), value.end(), '.', ',');
+					}
 					std::replace(value.begin(), value.end(), '.', ',');
 				}
 				rowdata.push_back(value);
@@ -244,14 +253,13 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 			// Asign cell float value
 			// NOT WORKING CORRECTLY DUE TO PRECISION SHIT!!!
 			// Maybe it deosnt matter and you should set precision for cells in excel??? idk
-			/*
-			if (s_IsNumber(value)) {
-				replace(value.begin(), value.end(), ',', '.');
-				std::string precision = "";
-				float number = s_StringToFloat(value, &precision);
-				dest_cell.value(value);
+			if (IsNumber(value)) {
+				std::replace(value.begin(), value.end(), ',', '.');
+				float number = std::stof(value);
+				dest_cell.value(number);
+				dest_cell.number_format(xlnt::number_format::number_format("0.000")); // 3 decimal digits
 				continue;
-			}*/
+			}
 			// Asign cell value string
 			dest_cell.value(value);
 		}
@@ -275,7 +283,8 @@ void FileInfo::Unload() {
 }
 
 void FileInfo::LoadSettings(const std::string& path){
-	std::ifstream file(path, std::ios::binary);
+	fs::path fixedpath = fs::u8path(path);
+	std::ifstream file(fixedpath.wstring(), std::ios::binary);
 	if (!file) {
 		logging::logwarning("FILELOADER::FileInfo::LoadSettings Could not load File Settings: %s", path.c_str());
 		return;
@@ -289,18 +298,18 @@ void FileInfo::LoadSettings(const std::string& path){
 		if (header == "m_filename") {
 			m_filename = value;
 		}
-		else if (header == "m_mergefile") {
+		else if (header == "m_mergefile" && value != "") {
 			FileInfo mergefile;
 			mergefile.LoadFile(value);
 			Settings->SetMergeFile(mergefile);
 		}
-		else if (header == "m_mergefolderfile") {
+		else if (header == "m_mergefolderfile" && value != "") {
 			Settings->SetMergeFolderTemplate(value);
 		}
 		else if (header == "m_dontimportifexistsheader") {
 			Settings->SetDontImportIf(value);
 		}
-		else if (header == "m_mergefolder") {
+		else if (header == "m_mergefolder" && value != "") {
 			Settings->SetMergeFolder(value);
 		}
 		else if (header == "m_mergeheadersfolder") {
@@ -339,7 +348,7 @@ void FileInfo::SaveSettings(const std::string& path){
 		return;
 	// Creating the path
 	fs::path filePath = fs::u8path(m_filename);
-	const std::string filename = path + filePath.filename().string() + ".ini";
+	const std::string filename = path + "/" + filePath.filename().string() + ".ini";
 	// Opening the file
 	std::ofstream file(filename, std::ios::binary);
 	if (!file) {
@@ -427,6 +436,13 @@ void FileInfo::LoadFile(const std::string& filename) {
 		else {
 			break;
 		}
+	}
+	if (m_rowinfo.size() == 0) {
+		RowInfo rinfo;
+		for (auto&& header : m_headerinfo) {
+			rinfo.AddData(header.first, "empty_file " + header.first);
+		}
+		m_rowinfo.push_back(rinfo);
 	}
 	Settings = new FileSettings();
 	Settings->SetParentFile(this);

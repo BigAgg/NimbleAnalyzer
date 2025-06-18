@@ -67,9 +67,9 @@ void Project::Unload() {
 
 void Project::Load(const std::string& name) {
 	m_name = name;
-	fs::path propath = fs::path("projects") / name;
+	fs::path propath = fs::path("projects") / fs::u8path(name);
 	if (!fs::exists(propath)) {
-		logging::logwarning("PROJECT::Project::Load Project does not exist: name");
+		logging::logwarning("PROJECT::Project::Load Project does not exist: %s", name.c_str());
 		return;
 	}
 	std::ifstream file(propath.string() + "/.pro", std::ios::binary);
@@ -92,19 +92,23 @@ void Project::Load(const std::string& name) {
 			m_paths.push_back(line);
 	}
 	SelectFile(selectedFile);
-	loadedFile.LoadFile(m_currentFile);
-	fs::path tmpPath = fs::path(m_currentFile);
-	const std::string tmpstr = tmpPath.filename().string();
-	const std::string projectName = GetName();
-	loadedFile.LoadSettings("projects/" + projectName + "/" + tmpstr + ".ini");
+	if (m_currentFile != "") {
+		loadedFile.LoadFile(m_currentFile);
+		fs::path tmpPath = fs::path(m_currentFile);
+		const std::string tmpstr = tmpPath.filename().string();
+		const std::string projectName = GetName();
+		loadedFile.LoadSettings("projects/" + projectName + "/" + tmpstr + ".ini");
+	}
 }
 
 void Project::Save() {
 	if (m_name == "") {
 		return;
 	}
-	fs::create_directory("projects/" + m_name);
-	std::ofstream file("projects/" + m_name + "/" + ".pro", std::ios::binary);
+	fs::path path = fs::path("projects") / fs::u8path(m_name);
+	fs::create_directory(path);
+	fs::path filepath = path / ".pro";
+	std::ofstream file(filepath.wstring(), std::ios::binary);
 	if (file) {
 		file << m_currentFile << '\n';
 		file << m_paths.size() << '\n';
@@ -112,7 +116,7 @@ void Project::Save() {
 			file << path << '\n';
 		}
 	}
-	loadedFile.SaveSettings("projects/" + m_name + "/");
+	loadedFile.SaveSettings(path.string());
 }
 
 void Project::Delete() {
