@@ -49,15 +49,17 @@ static std::vector<Project> projects;
 static int selected_project = -1;
 
 static void s_LoadProject(const std::string& name) {
-	std::string projectName = Splitlines(name, "\\").second;
+	std::string projectName = Splitlines(name, "\\").second;	// Get the project name
 	if (projectName == "")
 		return;
+	// Generate the project and load it
 	projects.push_back(Project());
 	projects.back().SetName(projectName);
 	projects.back().Load(projectName);
 }
 
 static void s_LoadAllProjects() {
+	// Iterates through "projects/" and loads every project available
 	for (const auto& dirEntry : fs::directory_iterator("projects")) {
 		const std::u8string u8path = dirEntry.path().u8string();
 		const std::string strpath(u8path.begin(), u8path.end());
@@ -65,6 +67,7 @@ static void s_LoadAllProjects() {
 	}
 }
 
+// Struct to store all window related settings
 namespace engine {
 	static struct {
 		int windowW = 640;
@@ -78,7 +81,7 @@ namespace engine {
 
 	static ENGINE_ERROR errorcode = ENGINE_UNINITIALIZED_ERROR;
 
-	static Image s_icon;
+	static Image s_icon;	// Icon image that is loaded in Init()
 
 	ENGINE_ERROR GetErrorcode() {
 		return errorcode;
@@ -102,6 +105,7 @@ namespace engine {
 #else
 		std::string windowName = "NimbleAnalyzer";
 #endif
+		// Initialize Raylib and setup window
 		InitWindow(engineSettings.windowW, engineSettings.windowH, windowName.c_str());
 		SetWindowState(FLAG_WINDOW_RESIZABLE);
 		s_icon = LoadImage("NimbleAnalyzer.png");
@@ -115,8 +119,8 @@ namespace engine {
 		SetTargetFPS(engineSettings.fps);
 		if (engineSettings.maximized)
 			MaximizeWindow();
-
-		if (engineSettings.device == -1) {
+		// Setup monitor and window position
+		if (engineSettings.device == -1 || engineSettings.device >= GetMonitorCount()) {
 			engineSettings.device = GetCurrentMonitor();
 			Vector2 windowPos = GetWindowPosition();
 			if (windowPos.y < 0)
@@ -149,6 +153,7 @@ namespace engine {
 	}
 
 	bool LoadSettings() {
+		// Load settings from binary file into engineSettings struct
 		std::ifstream file("bin/engine.bin", std::ios::binary);
 		if (!file)
 			return false;
@@ -157,6 +162,7 @@ namespace engine {
 	}
 
 	bool SaveSettings() {
+		// Saves engineSettings struct into binary file
 		std::ofstream file("bin/engine.bin", std::ios::binary);
 		if (!file)
 			return false;
@@ -165,7 +171,9 @@ namespace engine {
 	}
 
 	void Run() {
+		// Main loop until window should close
 		while (!WindowShouldClose()) {
+			// Check if the window was resized last frame and adjust to it
 			if (IsWindowResized()) {
 				int width = GetScreenWidth();
 				int height = GetScreenHeight();
@@ -189,6 +197,9 @@ namespace engine {
 	}
 
 	void Render() {
+		// Skip drawing if the window is not even focused (cpu usage=0%)
+		// Maybe add input detection aswell to only update when mouse movement
+		// or key presses happened
 		if (!IsWindowFocused()) {
 			PollInputEvents();
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -199,10 +210,6 @@ namespace engine {
 		ui::HandleUI();
 		EndDrawing();
 	}
-};
-
-namespace analyzer {
-
 };
 
 namespace ui {
@@ -224,7 +231,8 @@ namespace ui {
 		FILTERS,
 		FILTER_DEFAULT = FILTER_NONE
 	};
-	
+
+	// Textures that are used throughout the programm
 	static Texture folder_icon;
 	static Texture open_file_icon;
 	static Texture file_icon;
@@ -241,10 +249,11 @@ namespace ui {
 	UI_ERROR GetErrorcode() {
 		return errorcode;
 	}
-
+	
+	// Variables for filtering data and contents
 	static std::vector<std::string> s_hiddenHeaders;
 	static bool s_ignoreCache = false;
-	static std::string s_viewmode = "horizontal-aboveheader";
+	static std::string s_viewmode = "horizontal-noheader";
 	static std::string s_filter = "";
 	static FILTER_MODE s_filtermode = FILTER_DEFAULT;
 	static struct {
@@ -312,16 +321,18 @@ namespace ui {
 	}
 
 	void Shutdown() {
+		// Save all projects loaded
 		for (auto& project : projects) {
 			project.Save();
 		}
+		// Unload all textures from the gpu
 		UnloadTexture(folder_icon);
 		UnloadTexture(open_file_icon);
 		UnloadTexture(file_icon);
 		UnloadTexture(delete_file_icon);
 		UnloadTexture(save_icon);
 		UnloadTexture(save_as_icon);
-		rlImGuiShutdown();
+		rlImGuiShutdown();	// shutdown imgui
 	}
 
 	static void MainMenu() {
@@ -364,12 +375,14 @@ namespace ui {
 			}
 			if (ImGui::Button("Anlegen") && new_project.GetName() != "") {
 				bool anlegen = true;
+				// Check if the project name already exists
 				for (const Project& p : projects) {
 					if (p.GetName() == name) {
 						anlegen = false;
 						break;
 					}
 				}
+				// Store the new project and select it, also save the previous selected project
 				if (anlegen) {
 					current_project->Save();
 					projects.push_back(new_project);
@@ -384,6 +397,7 @@ namespace ui {
 	}
 
 	static void DisplayProjectSelection() {
+		// Listbox to select from the project list
 		ImGui::Text((char*)u8"Projekt wählen");
 		if (ImGui::BeginListBox("## Project selection", {300.0f, 75.0f})) {
 			for (int x = 0; x < projects.size(); x++) {
@@ -392,6 +406,7 @@ namespace ui {
 				const std::string& name = project.GetName();
 				char buff[256];
 				strncpy_s(buff, name.c_str(), 256);
+				// If selection happened store the new one and save the old one
 				if (ImGui::Selectable(buff, &selected)) {
 					current_project->Save();
 					selected_project = x;
@@ -403,7 +418,8 @@ namespace ui {
 					ImGui::SetItemDefaultFocus();
 			}
 			ImGui::EndListBox();
-			if (projects.size() > 0 && ImGui::Button("Projekt entfernen")) {
+			// Project deletion
+			if (projects.size() > 0 && ImGui::Button("Projekt entfernen") && selected_project >= 0) {
 				current_project->Delete();
 				current_project->Unload();
 				projects.erase(projects.cbegin() + selected_project);
@@ -418,6 +434,7 @@ namespace ui {
 
 	static void DisplayFileSelection() {
 		ImGui::Text((char*)u8"Projektdateien");
+		// File selection for all files inside the selected project
 		if (ImGui::BeginListBox("## File Selection", {400.0f, 75.0f})) {
 			const std::vector<std::string> files = current_project->GetFilePaths();
 			const std::string current_file = current_project->GetSelectedFile();
@@ -442,16 +459,19 @@ namespace ui {
 			}
 			ImGui::EndListBox();
 		}
+		// Handle adding new files
 		if (rlImGuiImageButtonSize((char*)u8"Neue Datei Hinzufügen", &file_icon, { 30.0f, 30.0f })) {
 			current_project->AddFilePath(OpenFileDialog("Excel Sheet", "xlsx,csv"));
 		}
 		ImGui::SetItemTooltip((char*)u8"Datei hinzufügen");
 		ImGui::SameLine();
+		// Delete files from project (selected file is getting deleted)
 		if (rlImGuiImageButtonSize("Datei entfernen", &delete_file_icon, { 30.0f, 30.0f })) {
 			current_project->RemoveFilePath(current_project->GetSelectedFile());
 		}
 		ImGui::SetItemTooltip("Datei entfernen");
 		ImGui::SameLine();
+		// Saving options for selected file
 		if(rlImGuiImageButtonSize("Datei speichern als", &save_as_icon, {30.0f, 30.0f})) {
 			const std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
 			if (filename != "")
@@ -509,16 +529,20 @@ namespace ui {
 	}
 
 	static void DisplayHeaderMergeSettings() {
+		// Merging button and handling
 		if (ImGui::Button("Daten Mergen")) {
 			current_project->loadedFile.Settings->MergeFiles();
 			s_ignoreCache = false;
 		}
-
+	
+		// Retrieve data for displaying settings
 		auto headers = current_project->loadedFile.GetHeaderNames();
 		auto mergeheaders = current_project->loadedFile.Settings->GetMergeFile().GetHeaderNames();
 		auto setmergeheaders = current_project->loadedFile.Settings->GetMergeHeaders();
 		auto headerif = current_project->loadedFile.Settings->GetMergeIf();
 
+		// Iterate each header that each RowInfo contains and display dropdown menus aswell as
+		// Checkboxes to set their settings
 		for (auto& header : headers) {
 			if (header == "")
 				continue;
@@ -530,6 +554,7 @@ namespace ui {
 			}
 			std::string label = "## Datensuche ##" + header;
 			bool searchif = (header == headerif.first);
+			// Checkbox handles rather this header is to check if the value matches or not
 			if (ImGui::Checkbox(label.c_str(), &searchif)) {
 				if (searchif) {
 					setHeader.first = header;
@@ -541,6 +566,7 @@ namespace ui {
 			}
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(300.0f);
+			// Combo for this header where you can select which header should be imported here
 			if (ImGui::BeginCombo(header.c_str(), setHeader.second.c_str())) {
 				for (auto& mergeheader : mergeheaders) {
 					bool selected = (mergeheader == setHeader.second);
@@ -563,6 +589,7 @@ namespace ui {
 	}
 
 	static void DisplayHeaderSettings() {
+		// Checkboxes to toggle certain values being displayed or not
 		auto&& headers = current_project->loadedFile.GetHeaderNames();
 		for (auto&& header : headers) {
 			if (Splitlines(header, " ##").first == "")
@@ -598,17 +625,23 @@ namespace ui {
 	}
 
 	static void DisplayHeaderMergeFolderSettings() {
+		// Retrieve data
 		auto headers = current_project->loadedFile.GetHeaderNames();
 		auto mergeheaders = current_project->loadedFile.Settings->GetMergeFolderTemplate().GetHeaderNames();
 		auto setmergeheaders = current_project->loadedFile.Settings->GetMergeFolderHeaders();
 		auto headerif = current_project->loadedFile.Settings->GetMergeFolderIf();
 		std::string dontimportif = current_project->loadedFile.Settings->GetDontImportIf();
 
+		// Top menubar
 		ImGui::BeginMenuBar();
+		// merging data
 		if (ImGui::Button("Daten Mergen")) {
 			current_project->loadedFile.Settings->MergeFiles();
 			s_ignoreCache = false;
 		}
+		// Combo to select a header, this header is being ignored when importing data
+		// which means that if this headers value already exists in the sourcefile
+		// it doesnt get imported again
 		ImGui::Text("Daten Ignorieren wenn Header");
 		if (ImGui::BeginCombo("## Header ignorieren", dontimportif.c_str())) {
 			bool noneselect = (dontimportif == "NONE");
@@ -626,7 +659,9 @@ namespace ui {
 			ImGui::EndCombo();
 		}
 		ImGui::EndMenuBar();
-
+		
+		// Simply the header selection same as in function above where we have a combo
+		// To select import headers foreach source header
 		for (auto& header : headers) {
 			if (header == "")
 				continue;
@@ -671,11 +706,13 @@ namespace ui {
 	}
 
 	static void ProjectWindow() {
+		// Setup flags and settings
 		int flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_HorizontalScrollbar;
 		int flags_nohscroll = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar;
 		int flags_nomenu = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_HorizontalScrollbar;
 		float screenW = static_cast<float>(GetScreenWidth());
 		float screenH = static_cast<float>(GetScreenHeight());
+		// Generate and setup the window
 		ImGui::SetNextWindowSize({ screenW, screenH - 22.0f });
 		ImGui::SetNextWindowPos({ 0.0f, 22.0f });
 		ImGui::Begin("Wareneingang ## Window", nullptr, flags_nohscroll);
@@ -708,6 +745,7 @@ namespace ui {
 					DisplayHeaderMergeSettings();
 					ImGui::EndChild();
 				}
+				// Display merge folder settings if mergefolder is set
 				if (current_project->loadedFile.Settings->IsMergeFolderSet()
 					&& current_project->loadedFile.Settings->GetMergeFolderTemplate().IsReady()) {
 					ImGui::SameLine();
@@ -717,6 +755,7 @@ namespace ui {
 				}
 			}
 		}
+		// Maybe delete this as it is just for debugging? idk
 		ImGui::BeginChild("Dataview", { screenW, screenH - 600 }, 0, flags_nomenu);
 		// Drawing the data for testing
 		if (current_project->loadedFile.IsReady()) {
@@ -725,8 +764,6 @@ namespace ui {
 			DisplayDataset(data, "horizontal-aboveheader", s_hiddenHeaders);
 			int x = 0;
 			for (RowInfo& row : data) {
-				//DisplayData(row, x, "horizontal-aboveheader");
-				//DisplayData(row, x, "horizontal-aboveheader", s_hiddenHeaders);
 				if (row.Changed())
 					current_project->loadedFile.SetRowData(row, x);
 				x++;
@@ -770,10 +807,12 @@ namespace ui {
 			}
 			ImGui::EndMenu();
 		}
+		// Dropdwon to select which headers not to display
 		if (ImGui::BeginMenu("Header Ausblenden")) {
 			DisplayHeaderSettings();
 			ImGui::EndMenu();
 		}
+		// Create a new row dataset at the bottom
 		if (ImGui::Button((char*)u8"Neuen Datensatz einfügen")) {
 			RowInfo rinfo;
 			for (auto& header : headers) {
@@ -837,6 +876,7 @@ namespace ui {
 				}
 				ImGui::EndCombo();
 			}
+			// Header selection to apply filter to
 			if (ImGui::BeginCombo("Header filtern", filterSettings.header.c_str())) {
 				bool selected = (filterSettings.header == "NONE" || filterSettings.header == "");
 				if (ImGui::Selectable("NONE", &selected))
@@ -854,6 +894,8 @@ namespace ui {
 				}
 				ImGui::EndCombo();
 			}
+			// Now apply the different filter methods (create different functions for it?)
+			// Definetly needs a refactor i think but its working fine rn
 			switch (s_filtermode) {
 			case FILTER_GREATER_THAN:
 				if (ImGui::InputFloat("Max", &filterSettings.max)) {
@@ -978,8 +1020,7 @@ namespace ui {
 			ImGui::EndMenu();
 		}
 		ImGui::EndMenuBar();
-		// Datenanzeige
-		// Zeichne Überschriften falls nötig
+		// Dataview drawing headers if needed
 		if (s_viewmode == "horizontal-noheader") {
 			ImGui::BeginChild("headers", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()) + 50.0f, 25.0f});
 			ImGui::Button(" X ");
@@ -1004,6 +1045,7 @@ namespace ui {
 		}
 		ImGui::Separator();
 		ImGui::BeginChild("dataview", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()) + 50.0f, screenH - 125.0f}, 0, flags_nomenu);
+		// Now drawing the filtered data if there is any
 		if (s_filteredData.size() == 0 && s_filter == "") {
 			int x = 0;
 			for (RowInfo& row : data) {
@@ -1020,6 +1062,7 @@ namespace ui {
 				x++;
 			}
 		}
+		// If no filtered, simply draw the whole dataset available
 		else {
 			for (std::pair<int, RowInfo> pair : s_filteredData) {
 				ImGui::SetNextItemWidth(6.0f);

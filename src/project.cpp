@@ -80,11 +80,14 @@ void Project::Load(const std::string& name) {
 	std::string line;
 	std::getline(file, line);
 	RemoveAllSubstrings(line, "\n");
+	// First line is the selected project
 	const std::string selectedFile = line;
 	std::getline(file, line);
 	RemoveAllSubstrings(line, "\n");
+	// Retrieve the files count
 	const int amount = std::stoi(line);
 	m_paths.clear();
+	// Load in all project files
 	for (int x = 0; x < amount; x++) {
 		std::getline(file, line);
 		RemoveAllSubstrings(line, "\n");
@@ -92,6 +95,7 @@ void Project::Load(const std::string& name) {
 			m_paths.push_back(line);
 	}
 	SelectFile(selectedFile);
+	// Check if currentFile is not empty and load it with its settings
 	if (m_currentFile != "") {
 		loadedFile.LoadFile(m_currentFile);
 		fs::path tmpPath = fs::path(m_currentFile);
@@ -105,10 +109,13 @@ void Project::Save() {
 	if (m_name == "") {
 		return;
 	}
+	// generate the directory
 	fs::path path = fs::path("projects") / fs::u8path(m_name);
 	fs::create_directory(path);
+	// generate and open a .pro file to save project settings
 	fs::path filepath = path / ".pro";
 	std::ofstream file(filepath.wstring(), std::ios::binary);
+	// Save project settings
 	if (file) {
 		file << m_currentFile << '\n';
 		file << m_paths.size() << '\n';
@@ -123,7 +130,7 @@ void Project::Delete() {
 	if (m_name == "") {
 		return;
 	}
-	fs::path projectPath = fs::path("projects") / m_name;
+	fs::path projectPath = fs::path("projects") / fs::u8path(m_name);
 
 	// Prevent deleting root
 	if (projectPath == "projects") {

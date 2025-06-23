@@ -35,6 +35,7 @@ SOFTWARE.
 namespace fs = std::filesystem;
 
 // Function predefinitions
+// Checks if a file is intact or not
 static bool s_CheckFile(const std::string& filename);
 std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename);
 static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string& filename);
@@ -47,6 +48,7 @@ static bool s_CheckFile(const std::string& filename) {
 		fs::path path = filename;
 		fs::create_directories("sheets");
 		xlnt::workbook wb;
+		// try to load / save and again load the file
 		wb.load(path.wstring());
 		wb.save("sheets/to_check.xlsx");
 		wb.clear();
@@ -69,18 +71,20 @@ std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename
 		return sheetData;
 	}
 	try {
+		// Load the file and check if it is ready
 		std::ifstream file(path.wstring(), std::ios::binary);
 		if (!file) {
 			logging::logerror("FILELOADER:: s_LoadCSVSheet File is corrupted and could not be loaded into filestream: %s", filename.c_str());
 			return sheetData;
 		}
+		// Setup the variable where each readed line is then stored
 		std::string line;
 		std::string separator = std::string(";");
 		// Next two lines are NEEDED!!!! because the separator string does not only contain ';'
 		separator.erase(0, separator.find_first_not_of(" \t\r\n"));
 		separator.erase(separator.find_last_not_of(" \t\r\n") + 1);
 		// Reading csv line by line
-		int x = 0;
+		int x = 0;	// To index where we are, literally just for first line to get the separator
 		while (std::getline(file, line)) {
 			RemoveAllSubstrings(line, "\"");
 			RemoveAllSubstrings(line, "\n");
@@ -97,12 +101,15 @@ std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename
 			// Now generate the row
 			std::vector<std::string> row;
 			std::pair<std::string, std::string> values = Splitlines(line, separator);
+			// Iterate the values until there is no value left to add
 			while (StrContains(values.second, separator)) {
 				row.push_back(values.first);
 				values = Splitlines(values.second, separator);
 			}
+			// Push back the last two values
 			row.push_back(values.first);
 			row.push_back(values.second);
+			// Add the row to sheetData
 			sheetData.push_back(row);
 			x++;
 		}
@@ -119,6 +126,7 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 	// Converting filename to a path
 	fs::path path = fs::u8path(filename);
 	const std::string extension = path.filename().extension().string();
+	// Check if the file is a csv and call its load function instead
 	if (extension == ".csv" || extension == ".CSV") {
 		return s_LoadCSVSheet(filename);
 	}
@@ -127,27 +135,27 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 		logging::logwarning("FILELOADER::s_LoadExcelSheet File does not exist: %s", filename.c_str());
 		return sheetData;
 	}
+	// Check if the file is loadable
 	if (!s_CheckFile(path.string())) {
 		logging::logwarning("FILELOADER::s_LoadExcelSheet Error loading file: %s", filename.c_str());
 		return sheetData;
 	}
 	try {
-		std::vector<std::vector<std::string>> testData;
+		std::vector<std::vector<std::string>> testData;	// Used to not break sheetData if the try fails
 		xlnt::workbook wb;
 		fs::path to_load = path.string();
-		wb.load(to_load.wstring());
-		xlnt::worksheet ws = wb.active_sheet();
+		wb.load(to_load.wstring());		// Loading excel sheet
+		xlnt::worksheet ws = wb.active_sheet();	// Getting the active sheet
 		// Loading each row
 		for (auto rows : ws.rows(false)) {
 			std::vector<std::string> rowdata;
 			for (auto cell : rows) {
 				std::string value = cell.to_string();
+				// Check if the value is a float and convert it to be 3 digits precision and convert '.' to ',' (german convertings)
 				if (!IsInteger(value) && cell.has_value() && cell.data_type() == xlnt::cell_type::number) {
 					float number = cell.value<float>();
-
 					std::ostringstream oss;
 					oss << std::fixed << std::setprecision(3) << number;
-
 					value = oss.str();
 					std::replace(value.begin(), value.end(), '.', ',');
 				}
@@ -155,7 +163,7 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 			}
 			testData.push_back(rowdata);
 		}
-		sheetData = testData;
+		sheetData = testData;		// Now everything is loaded and it didnt crash so asign the testData
 	}
 	catch(std::exception & e) {
 		logging::logerror("FILELOADER::s_LoadExcelSheet Error loading file: %s", e.what());
@@ -165,17 +173,22 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 }
 
 static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite, const std::string& sourcefile) {
+	// generate the path
 	fs::path path = fs::u8path(filename);
+	// Open the file
 	std::ofstream file(path.wstring(), std::ios::binary);
 	if (!file) {
 		logging::logwarning("FILELOADER::s_SaveCSVSheet Could not open file: %s", filename.c_str());
 		return;
 	}
+	// Set the separator to be ';'
 	file << "sep=;" << "\n";
+	// Iterate each row and generate the csv style behavior
 	for (auto&& row : excelSheet) {
 		for (int x = 0; x < row.size(); x++) {
-			std::string val = row[x];
+			std::string val = row[x];	// Get the data
 			if (x == 0) {
+				// Check if its a number or int else write the value inside '"'
 				if (IsInteger(val) || IsNumber(val)) {
 					file << val;
 				}
@@ -193,19 +206,23 @@ static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::v
 				}
 			}
 		}
-		file << '\n';
+		file << '\n';	// This row is done, start a new one
 	}
 }
 
 static void s_SaveExcelSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite, const std::string& sourcefile) {
+	// Generate the path
 	fs::path path = fs::u8path(filename);
+	// Get what extension the file has and load csv if extension matches it
 	const std::string extension = path.filename().extension().string();
 	if (extension == ".csv" || extension == ".CSV") {
 		s_SaveCSVSheet(filename, excelSheet, overwrite, sourcefile);
 		return;
 	}
+	// Generate path for source file
 	fs::path sourcepath = fs::u8path(sourcefile);
 	xlnt::workbook wb;
+	// Load the destfile if you dont want to overwrite the selected file
 	if (!overwrite) {
 		if (!s_CheckFile(path.string())) {
 			logging::logwarning("FILELOADER::s_SaveExcelSheet filechecking failure for: %s", filename.c_str());
@@ -213,6 +230,7 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 		}
 		wb.load(path.wstring());
 	}
+	// Check if a sourcefile should be loaded and load it
 	if (sourcefile != "") {
 		if (!s_CheckFile(path.string())) {
 			logging::logwarning("FILELOADER::s_SaveExcelSheet filecheking failure for sourcefile: %s", sourcefile.c_str());
@@ -222,7 +240,6 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 		}
 	}
 	xlnt::worksheet ws = wb.active_sheet();
-	logging::logwarning("saving %d rows", excelSheet.size());
 	// clearing everything that comes after the sheet
 	// Determine actual size
 	const std::size_t max_row = excelSheet.size();
@@ -251,6 +268,7 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 		}
 	}
 
+	// Iterate and write to the excel sheet's cells
 	for (int x = 0; x < excelSheet.size(); x++) {
 		for (int y = 0; y < excelSheet[x].size(); y++) {
 			xlnt::cell_reference cell_ref = xlnt::cell_reference(y + 1, x + 1);
@@ -263,9 +281,10 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 					break;
 				}
 			}
-			std::string value = excelSheet[x][y];
 			if (skip)
 				continue;
+			// Retrieve data from the excelSheet that should be written into the cell
+			std::string value = excelSheet[x][y];
 			// Asign cell integer value
 			if (IsInteger(value)) {
 				int number = std::stoi(value);
@@ -273,8 +292,6 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 				continue;
 			}
 			// Asign cell float value
-			// NOT WORKING CORRECTLY DUE TO PRECISION SHIT!!!
-			// Maybe it deosnt matter and you should set precision for cells in excel??? idk
 			if (IsNumber(value)) {
 				std::replace(value.begin(), value.end(), ',', '.');
 				float number = std::stof(value);
@@ -286,12 +303,14 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 			dest_cell.value(value);
 		}
 	}
+	// Save the file
 	wb.save(filename);
 }
 
 void FileInfo::Unload() {
 	if (!IsReady())
 		return;
+	// Unload all data to clear memory
 	for (auto& rinfo : m_rowinfo) {
 		rinfo.Unload();
 	}
@@ -305,18 +324,23 @@ void FileInfo::Unload() {
 }
 
 void FileInfo::LoadSettings(const std::string& path){
+	// Fix the string path to a u8path
 	fs::path fixedpath = fs::u8path(path);
+	// Load and check the file
 	std::ifstream file(fixedpath.wstring(), std::ios::binary);
 	if (!file) {
 		logging::logwarning("FILELOADER::FileInfo::LoadSettings Could not load File Settings: %s", path.c_str());
 		return;
 	}
+	// Read the file line by line
 	std::string line;
 	while (std::getline(file, line)) {
-		RemoveAllSubstrings(line, "\n");
-		std::pair<std::string, std::string> lineValues = Splitlines(line, " = ");
+		RemoveAllSubstrings(line, "\n");	// Needed as at the end of every line there is a \n which will be converted to the value if not removed
+		std::pair<std::string, std::string> lineValues = Splitlines(line, " = ");	// Split the line into header and value 
+		// For easy access
 		const std::string header = lineValues.first;
 		const std::string value = lineValues.second;
+		// Now check which data should be asigned and asign it
 		if (header == "m_filename") {
 			m_filename = value;
 		}
@@ -402,6 +426,7 @@ void FileInfo::SaveSettings(const std::string& path){
 void FileInfo::LoadFile(const std::string& filename) {
 	if (IsReady())
 		Unload();
+	// Clear everything before loading save is save
 	m_sheetData.clear();
 	m_rowinfo.clear();
 	m_sheetData = s_LoadExcelSheet(filename);
@@ -444,6 +469,7 @@ void FileInfo::LoadFile(const std::string& filename) {
 			std::string& value = m_sheetData[x][y];
 			if (value != "")
 				dataSet = true;
+			// Only way for me by now to check if the loaded shit is a date or not
 			if (StrContains(header, "Date")
 				|| StrContains(header, "Datum")
 				|| StrContains(header, "datum")
@@ -459,6 +485,7 @@ void FileInfo::LoadFile(const std::string& filename) {
 			break;
 		}
 	}
+	// Check if there was no data at all and add one filler data to not crash when saving lol
 	if (m_rowinfo.size() == 0) {
 		RowInfo rinfo;
 		for (auto&& header : m_headerinfo) {
@@ -473,7 +500,7 @@ void FileInfo::LoadFile(const std::string& filename) {
 }
 
 void FileInfo::SaveFile(const std::string& filename) {
-	CreateSheetData();
+	CreateSheetData();	// convert RowInfo to the m_sheetData
 	if (filename == "")
 		s_SaveExcelSheet(m_filename, m_sheetData, false);
 	else
@@ -486,16 +513,18 @@ void FileInfo::SaveFileAs(const std::string& sourcefile, const std::string& dest
 		return;
 	}
 
-	CreateSheetData();
+	CreateSheetData();	// convert RowInfo to the m_sheetData
 
 	s_SaveExcelSheet(destfile, m_sheetData, false, sourcefile);
 }
 
 void FileInfo::CreateSheetData() {
 	if (m_rowinfo.size() <= 0) {
-		return;
+		return;	// no data to create
 	}
+	// Check if the sheetData is not even loaded
 	if (m_sheetData.size() <= 0) {
+		// Generate header row
 		std::vector<std::string> headerRow;
 		headerRow.push_back("DATA");
 		RowInfo tmp = m_rowinfo[0];
@@ -509,11 +538,13 @@ void FileInfo::CreateSheetData() {
 			hinfo.second.first = 0;
 		}
 	}
-	m_sheetData.resize(m_headeridx+1);
+	m_sheetData.resize(m_headeridx+1);	// Delete all data after the headers to overwrite them properly
 	size_t header_size = m_sheetData[m_headeridx].size();
+	// Generate all rows for m_sheetData
 	for (int x = 0; x < m_rowinfo.size(); x++) {
 		const RowInfo& ri = m_rowinfo[x];
 		auto&& rdata = ri.GetData();
+		// generate row
 		std::vector<std::string> rowinfo(m_headerinfo.size() + 1);
 		for (auto& pair : rdata) {
 			int header_x = -1, header_y = -1;
@@ -533,6 +564,7 @@ std::string FileInfo::GetFilename() const {
 }
 
 std::pair<int, int> FileInfo::GetHeaderIndex(const std::string& header) {
+	// Maybe convert this to std::find_if? but it works for now
 	for (auto&& pair : m_headerinfo) {
 		if (pair.first == header) {
 			return pair.second;
@@ -607,6 +639,7 @@ void RowInfo::AddData(const std::string& header, const std::string& value){
 		[&header](const std::pair<std::string, std::string>& p) {
 			return p.first == header;
 		});
+	// Only add it if the header does not exist else edit the value
 	if (it == m_rowinfo.end()) {
 		m_rowinfo.push_back(std::make_pair(header, value));
 		return;
@@ -620,7 +653,7 @@ void RowInfo::UpdateData(const std::string& header, const std::string& newValue)
 			return p.first == header;
 		});
 	if (it == m_rowinfo.end()) {
-		return;
+		return;	// Header is not present, so dont update
 	}
 	it->second = newValue;
 	m_changed = true;
@@ -631,7 +664,7 @@ std::string RowInfo::GetData(const std::string& header) const{
 		if (p.first == header)
 			return p.second;
 	}
-	return "";
+	return "";	// header does not exit return empty
 }
 
 std::vector<std::pair<std::string, std::string>> RowInfo::GetData() const{
@@ -704,12 +737,14 @@ void FileSettings::AddHeaderToMerge(const std::string& sourceHeader, const std::
 		logging::logwarning("FILELOADER::FileSettings::AddHeaderToMerge m_parentFile is not set yet!");
 		return;
 	}
+	// Check if it already exists and just update
 	for (auto& pair : m_mergeheaders) {
 		if (pair.first == sourceHeader) {
 			pair.second = destHeader;
 			return;
 		}
 	}
+	// push back new
 	m_mergeheaders.push_back(std::make_pair(sourceHeader, destHeader));
 }
 
@@ -722,6 +757,7 @@ void FileSettings::RemoveHeaderToMerge(const std::string& header) {
 		[&header](const std::pair<std::string, std::string>& p) {
 			return p.first == header;
 		});
+	// if the header doesnt exist, nothing to remove and return
 	if (it == m_mergeheaders.end()) {
 		return;
 	}
@@ -738,7 +774,7 @@ std::vector<std::pair<std::string, std::string>> FileSettings::GetMergeHeaders()
 }
 
 void FileSettings::MergeFiles() {
-	std::unordered_set<std::string> dontimportvalues;
+	std::unordered_set<std::string> dontimportvalues;	// Set to check for the condition header to NOT import
 	if (m_dontimportifexistsheader != "" && m_dontimportifexistsheader != "NONE") {
 		for (auto& finfo : m_parentFile->GetData()) {
 			dontimportvalues.insert(finfo.GetData(m_dontimportifexistsheader));
@@ -746,12 +782,14 @@ void FileSettings::MergeFiles() {
 	}
 	if (IsMergeFolderSet() && IsMergeFolderTemplate()) {
 		logging::loginfo("FILELOADER::FileSettings::MergeFiles merging all files from folder: %s", m_mergefolder.c_str());
+		// Retrieve the cache file and check for any changes
 		std::string cache = m_mergefolder + "/.cache";
 		fs::path cachepath = fs::u8path(cache);
 		std::ofstream cachefile(cachepath.wstring(), std::ios::binary);
 		if (!cachefile) {
 			logging::logwarning("FILELOADER::FileSettings::MergeFiles cannot cache filedata!\n%s", cache);
 		}
+		// Now comes the merging magic. maybe this can be optimized later on
 		std::vector<RowInfo>&& data = m_parentFile->GetData();
 		for (auto& path : m_mergefolderpaths) {
 			FileInfo file;
@@ -858,6 +896,7 @@ void FileSettings::SetMergeFolder(const std::string& folder, const bool ignoreCa
 			logging::loginfo("FILELOADER::FileSettings::SetMergeFolder Directory is not valid: %s", folder);
 			return;
 		}
+		// read the cache file and ignore files that didnt change
 		std::string cache = folder + "/.cache";
 		fs::path cachepath = fs::u8path(cache);
 		std::ifstream cachefile(cachepath.wstring(), std::ios::binary);
@@ -871,6 +910,7 @@ void FileSettings::SetMergeFolder(const std::string& folder, const bool ignoreCa
 				cachedData.push_back(values);
 			}
 		}
+		// iterate each file and check for its ending to be a valid file
 		for (const auto& entry : fs::directory_iterator(path)) {
 			if (entry.is_regular_file()
 				&& (entry.path().extension().string() == ".csv"
@@ -885,6 +925,7 @@ void FileSettings::SetMergeFolder(const std::string& folder, const bool ignoreCa
 				}
 				bool add = true;
 				for (auto& pair : cachedData) {
+					// Dont add the file if the last writetime is same as in .cache
 					if (pair.first == strpath && pair.second == GetLastWriteTime(entry.path())) {
 						add = false;
 						break;
@@ -976,6 +1017,7 @@ void FileSettings::RemoveFolderHeaderToMerge(const std::string& header) {
 		[&header](const std::pair<std::string, std::string>& p) {
 			return p.first == header;
 		});
+	// Check if the header even exists
 	if (it == m_mergeheadersfolder.end()) {
 		return;
 	}

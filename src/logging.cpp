@@ -11,6 +11,7 @@ static std::vector<std::string> warnings;
 static std::string lastError = "";
 static std::vector<std::string> errors;
 
+// Outsource to utils???
 namespace strings {
 	bool ends_with(const std::string& value, const std::string& ending) {
 		if (ending.size() > value.size()) return false;
@@ -31,7 +32,7 @@ namespace logging {
 	static std::streambuf* oldCerrBuf;
 
 	namespace fs = std::filesystem;
-
+	
 	void log(const std::string& type, const std::string& msg) {
 		if (type == "ERROR") {
 			std::cerr << strings::GetTimestamp() << "\t" << type << ":\t" << msg << "\n";

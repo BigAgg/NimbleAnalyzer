@@ -37,17 +37,13 @@ namespace engine {
 
 
 	ENGINE_ERROR GetErrorcode();
-	bool Init();
-	void Shutdown();
-	bool LoadSettings();
-	bool SaveSettings();
+	bool Init();					// Initializes Raylib
+	void Shutdown();			// Shuts down the engine
+	bool LoadSettings();	// Loads settings from bin/engine.bin
+	bool SaveSettings();	// Saves settings to bin/engine.bin
 
-	void Run();
-	void Render();
-};
-
-namespace analyzer {
-	//static Project loadedProject;
+	void Run();						// Main loop
+	void Render();				// Render function
 };
 
 namespace ui {
@@ -60,8 +56,8 @@ namespace ui {
 	};
 
 	UI_ERROR GetErrorcode();
-	bool Init();
-	void Shutdown();
+	bool Init();			// Initializes ImGui
+	void Shutdown();	// Shuts down whole ui
 
-	void HandleUI();
+	void HandleUI();	// Renders and handles the ui
 };

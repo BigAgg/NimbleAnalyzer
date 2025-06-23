@@ -30,8 +30,8 @@ public:
 	FileInfo loadedFile;
 
 private:
-	std::string m_name = "";
-	std::string m_currentFile = "";
-	std::vector<std::string> m_paths;
+	std::string m_name = "";					// Project name
+	std::string m_currentFile = "";		// To know which file is currently active
+	std::vector<std::string> m_paths;	// All paths added to the project
 };
 

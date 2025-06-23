@@ -3,7 +3,7 @@
 
 int main(int argc, char *argv[]) {
 #ifdef NDEBUG
-  logging::startlogging("", "run.log");
+  logging::startlogging("", "run.log"); // log to file in Release mode
 #endif
   if (!engine::Init())
     return engine::GetErrorcode();
@@ -23,6 +23,7 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
+// This is needed when building in Release with msvc
 #ifdef _MSC_VER
 #ifdef NDEBUG
 #include <Windows.h>
