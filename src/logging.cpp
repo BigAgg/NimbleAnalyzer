@@ -10,6 +10,7 @@ static std::string lastWarning = "";
 static std::vector<std::string> warnings;
 static std::string lastError = "";
 static std::vector<std::string> errors;
+static std::vector<std::string> infos;
 
 // Outsource to utils???
 namespace strings {
@@ -38,12 +39,17 @@ namespace logging {
 			std::cerr << strings::GetTimestamp() << "\t" << type << ":\t" << msg << "\n";
 			lastError = msg;
 			errors.push_back(lastError);
+			infos.push_back("ERROR: " + msg);
 			logfile.flush();
 			return;
 		}
 		else if (type == "WARNING") {
 			lastWarning = msg;
 			warnings.push_back(lastWarning);
+			infos.push_back("WARNING: " + msg);
+		}
+		else if (type == "INFO") {
+			infos.push_back("INFO: " + msg);
 		}
 		std::cout << strings::GetTimestamp() << "\t" << type << ":\t" << msg << "\n";
 		logfile.flush();
@@ -102,5 +108,8 @@ namespace logging {
 	}
 	std::vector<std::string> GetWarnings() {
 		return warnings;
+	}
+	std::vector<std::string> GetAllMessages(){
+		return infos;
 	}
 }

@@ -131,6 +131,7 @@ void Project::Delete() {
 		return;
 	}
 	fs::path projectPath = fs::path("projects") / fs::u8path(m_name);
+	logging::loginfo("Project to delete: %s", projectPath.string().c_str());
 
 	// Prevent deleting root
 	if (projectPath == "projects") {

@@ -30,7 +30,9 @@ SOFTWARE.
 #include <format>
 #include "logging.h"
 #include "utils.h"
+#include "utf8.h"
 #include <unordered_set>
+#include <codecvt>
 
 namespace fs = std::filesystem;
 
@@ -63,61 +65,77 @@ static bool s_CheckFile(const std::string& filename) {
 
 std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename) {
 	std::vector<std::vector<std::string>> sheetData;
-	// Converting filename to path
 	fs::path path = fs::u8path(filename);
-	// Checking if file exists
+
 	if (!fs::exists(path)) {
 		logging::logwarning("FILELOADER::s_LoadCSVSheet File does not exist: %s", filename.c_str());
 		return sheetData;
 	}
+
 	try {
-		// Load the file and check if it is ready
-		std::ifstream file(path.wstring(), std::ios::binary);
+		// Read entire file into a string (binary, no interpretation yet)
+		std::ifstream file(path, std::ios::binary);
 		if (!file) {
-			logging::logerror("FILELOADER:: s_LoadCSVSheet File is corrupted and could not be loaded into filestream: %s", filename.c_str());
+			logging::logerror("FILELOADER::s_LoadCSVSheet File could not be opened: %s", filename.c_str());
 			return sheetData;
 		}
-		// Setup the variable where each readed line is then stored
+
+		std::string rawContent((std::istreambuf_iterator<char>(file)), {});
+		std::string fileContent = Convert1252ToUTF8(rawContent);
+
+		// Remove UTF-8 BOM if present
+		if (fileContent.size() >= 3 &&
+			(unsigned char)fileContent[0] == 0xEF &&
+			(unsigned char)fileContent[1] == 0xBB &&
+			(unsigned char)fileContent[2] == 0xBF) {
+			fileContent = fileContent.substr(3);
+		}
+
+		std::istringstream contentStream(fileContent);
 		std::string line;
-		std::string separator = std::string(";");
-		// Next two lines are NEEDED!!!! because the separator string does not only contain ';'
+		std::string separator = ";";
 		separator.erase(0, separator.find_first_not_of(" \t\r\n"));
 		separator.erase(separator.find_last_not_of(" \t\r\n") + 1);
-		// Reading csv line by line
-		int x = 0;	// To index where we are, literally just for first line to get the separator
-		while (std::getline(file, line)) {
+
+		int x = 0;
+		while (std::getline(contentStream, line)) {
+			// Clean up line
 			RemoveAllSubstrings(line, "\"");
 			RemoveAllSubstrings(line, "\n");
 			RemoveAllSubstrings(line, "\t");
 			RemoveAllSubstrings(line, "\r");
-			// first line often containes seperator
+			ReplaceAllSubstrings(line, "\\", "/");
+
+			// Check for sep= directive
 			if (x == 0 && line.starts_with("sep=")) {
 				separator = Splitlines(line, "=").second;
-				// Next two lines are NEEDED!!!! because the separator string does not only contain ';'
 				separator.erase(0, separator.find_first_not_of(" \t\r\n"));
 				separator.erase(separator.find_last_not_of(" \t\r\n") + 1);
+				x++;
 				continue;
 			}
-			// Now generate the row
+
 			std::vector<std::string> row;
 			std::pair<std::string, std::string> values = Splitlines(line, separator);
-			// Iterate the values until there is no value left to add
+
 			while (StrContains(values.second, separator)) {
 				row.push_back(values.first);
 				values = Splitlines(values.second, separator);
 			}
-			// Push back the last two values
+
+			// Push remaining values
 			row.push_back(values.first);
 			row.push_back(values.second);
-			// Add the row to sheetData
+
 			sheetData.push_back(row);
 			x++;
 		}
 	}
-	catch (std::exception& e) {
+	catch (const std::exception& e) {
 		logging::logerror("FILELOADER::s_LoadCSVSheet Could not load file: %s\nERROR: %s", filename.c_str(), e.what());
-		return std::vector<std::vector<std::string>>();
+		return {};
 	}
+
 	return sheetData;
 }
 
@@ -292,7 +310,7 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 				continue;
 			}
 			// Asign cell float value
-			if (IsNumber(value)) {
+			if (IsNumber(value) && !StrContains(value, ".")) {
 				std::replace(value.begin(), value.end(), ',', '.');
 				float number = std::stof(value);
 				dest_cell.value(number);
@@ -300,11 +318,26 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 				continue;
 			}
 			// Asign cell value string
-			dest_cell.value(value);
+			if (!IsValidUTF8(value)) {
+				std::string cleaned;
+				utf8::replace_invalid(value.begin(), value.end(), std::back_inserter(cleaned));
+				dest_cell.value(cleaned);
+			}
+			else
+				dest_cell.value(value, true);
 		}
 	}
 	// Save the file
-	wb.save(filename);
+	try {
+		wb.save("sheets/to_save.xlsx");
+		if (s_CheckFile("sheets/to_save.xlsx"))
+			wb.save(filename);
+		else
+			logging::logerror("FILELOADER::s_SaveExcelSheet File got corrupetd: %s", filename.c_str());
+	}
+	catch (std::exception& e) {
+		logging::logerror("FILELOADER::s_SaveExcelSheet File could not be saved: %s", e.what());
+	}
 }
 
 void FileInfo::Unload() {
@@ -421,6 +454,60 @@ void FileInfo::SaveSettings(const std::string& path){
 	}
 	auto&& mergeif = Settings->GetMergeIf();
 	file << "m_mergeif = " << mergeif.first << " := " << mergeif.second << '\n';
+}
+
+void SplitWorksheets(const std::string& filename){
+	if (!StrEndswith(filename, ".xlsx"))
+		return;
+	try {
+		fs::path path = fs::u8path(filename);
+		xlnt::workbook wb;
+		wb.load(path.wstring());
+
+		int sheet_index = 0;
+		for (const auto& sheet_name : wb.sheet_titles()) {
+			xlnt::worksheet ws = wb.sheet_by_title(sheet_name);
+
+			// Create a new workbook and add the current sheet to it
+			xlnt::workbook new_wb;
+			xlnt::worksheet new_ws = new_wb.active_sheet();
+			new_ws.title(sheet_name);
+
+			// Copy contents cell by cell
+			for (auto row : ws.rows(false)) {
+				for (auto cell : row) {
+					new_ws.cell(cell.reference()).value(cell.to_string());
+				}
+			}
+			// Save to file with dynamic name
+			std::string output_filename = "sheets/sheet_" + std::to_string(sheet_index) + "_" + sheet_name + ".xlsx";
+			new_wb.save(output_filename);
+			logging::loginfo("FILELOADER::SplitWorksheets Saved splitfile: \n%s", output_filename.c_str());
+
+			++sheet_index;
+		}
+	}
+	catch(std::exception & e) {
+		logging::logerror("%s", e.what());
+	}
+}
+
+void EditWorksheet(const std::string& filename, int DATA_row, bool deleteEmptyRows){
+	xlnt::workbook wb;
+	wb.load(filename);
+	xlnt::worksheet ws = wb.active_sheet();
+	if (DATA_row > 0) {
+		ws.insert_columns(1, 1);
+		const std::string idx = "A" + std::to_string(DATA_row);
+		ws.cell(idx).value("DATA");
+		if (deleteEmptyRows) {
+			ws.delete_rows(DATA_row + 1, 1);
+			// Delete all empty rows (from bottom to top to keep indices stable)
+			if (DATA_row <= 0)
+				DATA_row = 1;
+		}
+	}
+	wb.save(filename);
 }
 
 void FileInfo::LoadFile(const std::string& filename) {
@@ -780,17 +867,26 @@ void FileSettings::MergeFiles() {
 			dontimportvalues.insert(finfo.GetData(m_dontimportifexistsheader));
 		}
 	}
+	int cellsImported = 0;
 	if (IsMergeFolderSet() && IsMergeFolderTemplate()) {
 		logging::loginfo("FILELOADER::FileSettings::MergeFiles merging all files from folder: %s", m_mergefolder.c_str());
 		// Retrieve the cache file and check for any changes
 		std::string cache = m_mergefolder + "/.cache";
 		fs::path cachepath = fs::u8path(cache);
-		std::ofstream cachefile(cachepath.wstring(), std::ios::binary);
+		std::ofstream cachefile(cachepath.wstring(), std::ios::binary | std::ios::app);
 		if (!cachefile) {
 			logging::logwarning("FILELOADER::FileSettings::MergeFiles cannot cache filedata!\n%s", cache);
 		}
 		// Now comes the merging magic. maybe this can be optimized later on
 		std::vector<RowInfo>&& data = m_parentFile->GetData();
+		size_t dataSize = data.size();
+		if (data.size() <= 0) {
+			RowInfo emptyRow;
+			for (auto& header : m_parentFile->GetHeaderNames()) {
+				emptyRow.AddData(header, "empty");
+			}
+			data.push_back(emptyRow);
+		}
 		for (auto& path : m_mergefolderpaths) {
 			FileInfo file;
 			file.LoadFile(path);
@@ -819,6 +915,7 @@ void FileSettings::MergeFiles() {
 					for (auto& mergeheader : m_mergeheadersfolder) {
 						const std::string value = row.GetData(mergeheader.second);
 						newrow.UpdateData(mergeheader.first, value);
+						cellsImported++;
 						dataset = true;
 					}
 					if (dataset) {
@@ -843,6 +940,7 @@ void FileSettings::MergeFiles() {
 							std::string new_val = merge_row.GetData(pair.second);
 							if (new_val != "") {
 								row.UpdateData(pair.first, new_val);
+								cellsImported++;
 							}
 						}
 						break;
@@ -854,11 +952,19 @@ void FileSettings::MergeFiles() {
 			}
 			file.Unload();
 		}
+		SetMergeFolder(m_mergefolder);
 	}
 	if (!m_mergefile.IsReady())
 		return;
 	logging::loginfo("FILELOADER::FileSettings::MergeFiles Merging files\n\t%s\n\t%s\n\t And Searching for header: %s to fill with %s", m_parentFile->GetFilename().c_str(), m_mergefile.GetFilename().c_str(), m_mergeif.first.c_str(), m_mergeif.second.c_str());
 	std::vector<RowInfo> &&data = m_parentFile->GetData();
+	if (data.size() <= 0) {
+		RowInfo emptyRow;
+		for (auto& header : m_parentFile->GetHeaderNames()) {
+			emptyRow.AddData(header, "empty");
+		}
+		data.push_back(emptyRow);
+	}
 	std::vector<RowInfo> &&mergeData = m_mergefile.GetData();
 	int idx = -1;
 	for (auto& row : data) {
@@ -876,6 +982,7 @@ void FileSettings::MergeFiles() {
 				std::string new_val = merge_row.GetData(pair.second);
 				if (new_val != "") {
 					row.UpdateData(pair.first, new_val);
+					cellsImported++;
 				}
 			}
 			break;
@@ -884,7 +991,7 @@ void FileSettings::MergeFiles() {
 			m_parentFile->SetRowData(row, idx);
 		}
 	}
-	SetMergeFolder(m_mergefolder);
+	logging::loginfo("FILELOADER::FileSettings::MergeFiles %d Cells merged", cellsImported);
 }
 
 void FileSettings::SetMergeFolder(const std::string& folder, const bool ignoreCache) {

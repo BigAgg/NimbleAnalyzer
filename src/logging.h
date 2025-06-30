@@ -70,4 +70,5 @@ std::string GetLastWarning();
 std::vector<std::string> GetErrors();
 // Get the whole warnings list
 std::vector<std::string> GetWarnings();
+std::vector<std::string> GetAllMessages();
 } // namespace logging

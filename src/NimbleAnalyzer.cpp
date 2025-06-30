@@ -23,7 +23,6 @@ SOFTWARE.
 */
 
 #include "NimbleAnalyzer.h"
-
 #include <raylib.h>
 #include <imgui.h>
 #include "ui_helper.h"
@@ -130,6 +129,7 @@ namespace engine {
 		}
 		SetWindowMonitor(engineSettings.device);
 		SetWindowPosition(engineSettings.windowPosX, engineSettings.windowPosY);
+		SetExitKey(0);
 		return true;
 	}
 
@@ -217,6 +217,7 @@ namespace ui {
 		UI_NONE,
 		UI_PROJECT_WINDOW,
 		UI_DATA_VIEW_WINDOW,
+		UI_UPDATE_WINDOW,
 		UI_DEFAULT = UI_PROJECT_WINDOW,
 	};
 
@@ -249,6 +250,22 @@ namespace ui {
 	UI_ERROR GetErrorcode() {
 		return errorcode;
 	}
+
+	static bool s_updateAvail = false;
+	static std::string s_changes;
+
+	bool IsNewerVersion(const std::string& current, const std::string& available){
+		std::istringstream cur(current), avail(available);
+		int c1, c2;
+		char dot;
+		while (cur >> c1 && avail >> c2) {
+			if (c1 < c2) return true;
+			if (c1 > c2) return false;
+			cur >> dot;
+			avail >> dot;
+		}
+		return avail.rdbuf()->in_avail();	// if available has more parts
+	}
 	
 	// Variables for filtering data and contents
 	static std::vector<std::string> s_hiddenHeaders;
@@ -262,10 +279,32 @@ namespace ui {
 		std::string header = "";
 	} filterSettings;
 	static std::vector<std::pair<int, RowInfo>> s_filteredData;
+	bool s_deleteEmptyLines = true;
+	int s_rowDataPositionToAdd = 0;
 
 	static std::string s_filterlist[FILTERS];
 
 	bool Init() {
+		// Check for newer version
+#ifdef NIMBLE_ANALYZER_VERSION
+		const std::string currVersion = NIMBLE_ANALYZER_VERSION;
+		std::ifstream verFile("Y:/Produktion/Software & Tools/NimbleAnalyzer/src/output/VERSION");
+		if (verFile) {
+			std::string availVersion;
+			std::getline(verFile, availVersion);
+			s_updateAvail = IsNewerVersion(currVersion, availVersion);
+			if (s_updateAvail) {
+				uiSettings.ui_mode = UI_UPDATE_WINDOW;
+				std::ifstream changesFile("Y:/Produktion/Software & Tools/NimbleAnalyzer/src/output/CHANGES");
+				if (changesFile) {
+					std::string line;
+					while (std::getline(changesFile, line)) {
+						s_changes += line + "\n";
+					}
+				}
+			}
+		}
+#endif
 		// initialize filterlist
 		s_filterlist[FILTER_DEFAULT] = "Kein Filter";
 		s_filterlist[FILTER_GREATER_THAN] = (char*)u8"Größer als";
@@ -474,8 +513,13 @@ namespace ui {
 		// Saving options for selected file
 		if(rlImGuiImageButtonSize("Datei speichern als", &save_as_icon, {30.0f, 30.0f})) {
 			const std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
-			if (filename != "")
-				current_project->loadedFile.SaveFileAs(current_project->loadedFile.GetFilename(), filename);
+			if (filename != "") {
+				if (StrContains(filename, ".csv"))
+					current_project->loadedFile.SaveFile(filename);
+				else
+					current_project->loadedFile.SaveFileAs(current_project->loadedFile.GetFilename(), filename);
+
+			}
 		}
 		ImGui::SetItemTooltip("Datei speichern als");
 		ImGui::SameLine();
@@ -484,6 +528,38 @@ namespace ui {
 			current_project->loadedFile.SaveFileAs(filename, filename);
 		}
 		ImGui::SetItemTooltip((char*)u8"Datei speichern (Überschreibt geladene Datei)");
+		ImGui::SameLine();
+		if (ImGui::Button("Split Worksheets")) {
+			const std::string filename = OpenFileDialog("Excel Sheet", "xlsx");
+			if (filename != "") {
+				SplitWorksheets(filename);
+				if (s_rowDataPositionToAdd > 0 || s_deleteEmptyLines) {
+					for (const auto& entry : fs::directory_iterator("sheets")) {
+						if (!entry.is_regular_file())
+							continue;
+
+						const std::string fname = entry.path().string();
+
+						// Process only xlsx files starting with "sheet_"
+						if (StrEndswith(fname, ".xlsx") && StrContains(fname, "sheet_")) {
+							logging::loginfo("Editing worksheet: %s", fname);
+							try {
+								EditWorksheet(fname, s_rowDataPositionToAdd, s_deleteEmptyLines);
+							}
+							catch (const std::exception& e) {
+								logging::logerror("NIMBLEANALYZER::DisplayFileSelection::Split_Worksheets %s", e.what());
+							}
+						}
+					}
+				}
+			}
+		}
+		ImGui::SetItemTooltip("Konvertiert alle Tabellen zu einzelnen xlsx Dateien");
+		if (ImGui::Checkbox("Leere Zeilen entfernen", &s_deleteEmptyLines));
+		ImGui::SetItemTooltip("Entfernt aus allen gesplitteten Dateien leere Zeilen");
+		ImGui::SameLine();
+		if (ImGui::InputInt((char*)u8"Datensatz in Reihe hinzufügen", &s_rowDataPositionToAdd));
+		ImGui::SetItemTooltip((char*)u8"Wenn > 0 -> Fügt eine Reihe vor 'A' ein und fügt 'DATA' an\ngegebener Stelle ein (A:X)");
 	}
 
 	static void DisplayFileSettings() {
@@ -511,6 +587,14 @@ namespace ui {
 				current_project->loadedFile.Settings->SetMergeFolder(current_project->loadedFile.Settings->GetMergeFolder(), s_ignoreCache);
 			}
 			ImGui::SetItemTooltip((char*)u8"Ignoriert die Cache Datei für diesen Merge-Ordner\nDas bedeutet, dass schon eingebundene Dateien erneut\nzum einbinden überprüft werden!");
+			ImGui::SameLine();
+			if (ImGui::Button((char*)u8"Cache löschen")) {
+				const std::string folder = current_project->loadedFile.Settings->GetMergeFolder() + "/.cache";
+				fs::path p = fs::u8path(folder);
+				if (fs::exists(p)) {
+					fs::remove(p);
+				}
+			}
 		}
 		// Select single mergefile
 		fs::path filepath = current_project->loadedFile.Settings->GetMergeFile().GetFilename();
@@ -755,18 +839,17 @@ namespace ui {
 				}
 			}
 		}
+		std::vector<std::string> consolelog = logging::GetAllMessages();
 		// Maybe delete this as it is just for debugging? idk
-		ImGui::BeginChild("Dataview", { screenW, screenH - 600 }, 0, flags_nomenu);
-		// Drawing the data for testing
-		if (current_project->loadedFile.IsReady()) {
-			ImGui::Separator();
-			std::vector<RowInfo>&& data = current_project->loadedFile.GetData();
-			DisplayDataset(data, "horizontal-aboveheader", s_hiddenHeaders);
-			int x = 0;
-			for (RowInfo& row : data) {
-				if (row.Changed())
-					current_project->loadedFile.SetRowData(row, x);
-				x++;
+		ImGui::BeginChild("console", { screenW, screenH - 600 }, 0, flags_nomenu);
+		if (consolelog.size() > 0) {
+			for (int x = consolelog.size() - 1; x >= 0; x--) {
+				std::string label = consolelog[x] + " ##" + std::to_string(x);
+				if (ImGui::Selectable(label.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick)) {
+					if (ImGui::IsMouseDoubleClicked(0)) {
+						ImGui::SetClipboardText(consolelog[x].c_str());
+					}
+				}
 			}
 		}
 		ImGui::EndChild();
@@ -1081,6 +1164,32 @@ namespace ui {
 		ImGui::EndChild();
 		ImGui::End();
 	}
+	static void UpdateWindow() {
+		float screenW = static_cast<float>(GetScreenWidth());
+		float screenH = static_cast<float>(GetScreenHeight());
+		ImGui::SetNextWindowPos({ 0.0f, 22.0f });
+		ImGui::SetNextWindowSize({ static_cast<float>(screenW), static_cast<float>(screenH) - 22.0f });
+		ImGui::Begin("Update Window", nullptr);
+		ImGui::Text("New Update available");
+		if (ImGui::Button("Update")) {
+			std::string installerPath = "Y:\\Produktion\\Software & Tools\\NimbleAnalyzer\\src\\output\\setup_NimbleAnalyzer.exe";
+			fs::copy_file(installerPath, ".\\installer.exe", fs::copy_options::overwrite_existing);
+			std::string batPath = "update_temp.bat";
+			std::string appPath = fs::current_path().string() + "\\installer.exe";
+			std::ofstream bat(batPath);
+			bat << "@echo off\n";
+			bat << "timeout /t 2 /nobreak >nul\n"; // wait for 2 seconds
+			bat << "copy /Y \"" << installerPath << "\" \"" << appPath << "\"\n";
+			bat << "start \"\" \"" << appPath << "\"\n";
+			bat << "del \"%~f0\"\n"; // delete the script itself
+			bat.close();
+			system(("start " + batPath).c_str());
+			CloseWindow();
+		}
+		ImGui::SeparatorText("Changes");
+		ImGui::InputTextMultiline("## Changes_Input", s_changes.data(), s_changes.capacity() + 1, {0, 0}, ImGuiInputTextFlags_ReadOnly);
+		ImGui::End();
+	}
 
 	void HandleUI() {
 		rlImGuiBegin();
@@ -1093,6 +1202,9 @@ namespace ui {
 			break;
 		case UI_DATA_VIEW_WINDOW:
 			DataViewWindow();
+			break;
+		case UI_UPDATE_WINDOW:
+			UpdateWindow();
 			break;
 		case UI_NONE:
 		default:

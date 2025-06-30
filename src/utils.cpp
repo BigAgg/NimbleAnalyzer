@@ -1,4 +1,6 @@
 #include "utils.h"
+#include <codecvt>
+#include <Windows.h>
 
 std::string GetLastWriteTime(const std::filesystem::path& path) {
 	using namespace std::chrono;
@@ -21,10 +23,98 @@ bool StrContains(const std::string& input, const std::string& substring) {
 	return (input.find(substring) != std::string::npos);
 }
 
+bool StrEndswith(const std::string& input, const std::string& ending){
+	if (ending.size() > input.size()) return false;
+	return std::equal(ending.rbegin(), ending.rend(), input.rbegin());
+}
+
 void RemoveAllSubstrings(std::string& input, const std::string& toRemove) {
 	size_t pos;
 	while ((pos = input.find(toRemove)) != std::string::npos) {
 		input.erase(pos, toRemove.length());
+	}
+}
+
+void ReplaceAllSubstrings(std::string& input, const std::string& from, const std::string& to){
+	if (from.empty()) return;
+
+	std::size_t start_pos = 0;
+	while ((start_pos = input.find(from, start_pos)) != std::string::npos) {
+		input.replace(start_pos, from.length(), to);
+		start_pos += to.length(); // advance past replacement
+	}
+}
+
+bool IsValidUTF8(const std::string& str){
+	int c, i, ix, n, j;
+	for (i = 0, ix = str.length(); i < ix; i++) {
+		c = (unsigned char)str[i];
+		if (c >= 0 && c <= 127) n = 0;
+		else if ((c & 0xE0) == 0xC0) n = 1;
+		else if ((c & 0xF0) == 0xE0) n = 2;
+		else if ((c & 0xF8) == 0xF0) n = 3;
+		else return false;
+		for (j = 0; j < n && i < ix; j++) {
+			if ((++i == ix) || (((unsigned char)str[i] & 0xC0) != 0x80)) return false;
+		}
+	}
+	return true;
+}
+
+std::string Convert1252ToUTF8(const std::string& input){
+	// Convert Windows-1252 to UTF-16
+	int wideLen = MultiByteToWideChar(1252, 0, input.c_str(), -1, NULL, 0);
+	std::wstring wideStr(wideLen, 0);
+	MultiByteToWideChar(1252, 0, input.c_str(), -1, &wideStr[0], wideLen);
+
+	// Convert UTF-16 to UTF-8
+	int utf8Len = WideCharToMultiByte(CP_UTF8, 0, wideStr.c_str(), -1, NULL, 0, NULL, NULL);
+	std::string utf8Str(utf8Len, 0);
+	WideCharToMultiByte(CP_UTF8, 0, wideStr.c_str(), -1, &utf8Str[0], utf8Len, NULL, NULL);
+
+	// Remove trailing null terminator
+	utf8Str.pop_back();
+
+	return utf8Str;
+}
+
+std::string StrToWstr(const std::string& input){
+	std::wstring wstr;
+	try {
+		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+		wstr = converter.from_bytes(input);
+	}
+	catch (std::range_error& e) {
+		size_t length = input.length();
+		std::wstring result;
+		result.reserve(length);
+		for (size_t i = 0; i < length; i++) {
+			result.push_back(input[i] & 0xFF);
+		}
+		wstr = result;
+	}
+	size_t len = std::wcstombs(nullptr, wstr.c_str(), 0) + 1;
+	char* buffer = new char[len];
+	std::wcstombs(buffer, wstr.c_str(), len);
+	std::string output(buffer);
+	delete[] buffer;
+
+	return output;
+}
+
+std::wstring GetWstring(const std::string& input){
+	try {
+		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+		return converter.from_bytes(input);
+	}
+	catch (std::range_error& e) {
+		size_t length = input.length();
+		std::wstring result;
+		result.reserve(length);
+		for (size_t i = 0; i < length; i++) {
+			result.push_back(input[i] & 0xFF);
+		}
+		return result;
 	}
 }
 

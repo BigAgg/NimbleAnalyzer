@@ -26,6 +26,7 @@ inline std::string OpenDirectoryDialog() {
 	std::string outStr;
 	if (result == NFD_OKAY) {
 		outStr = std::string(outPath);
+		NFD_FreePathU8(outPath);
 	}
 	else if (result == NFD_CANCEL) {
 		outStr = "";
@@ -33,7 +34,6 @@ inline std::string OpenDirectoryDialog() {
 	else {
 		outStr = "";
 	}
-	NFD_FreePathU8(outPath);
 	NFD_Quit();
 	for (char& c : outStr) {
 		if (c == '\\') {
@@ -67,6 +67,7 @@ inline std::string OpenFileDialog(const std::string& filterName, const std::stri
 		{
 			std::cout << "Selected path: " << outStr << "\n";
 		}
+		NFD_FreePathU8(outPath);
 	}
 	else if (result == NFD_CANCEL) {
 		puts("User pressed cancel.");
@@ -75,7 +76,6 @@ inline std::string OpenFileDialog(const std::string& filterName, const std::stri
 		printf("Error: %s\n", NFD_GetError());
 	}
 	// Closing everything and free the path
-	NFD_FreePathU8(outPath);
 	NFD_Quit();
 	for (char& c : outStr) {
 		if (c == '\\') {

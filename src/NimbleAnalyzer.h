@@ -24,6 +24,8 @@ SOFTWARE.
 
 #pragma once
 
+#include <string>
+
 namespace engine {
 	enum ENGINE_ERROR {
 		ENGINE_NONE_ERROR,
@@ -56,6 +58,7 @@ namespace ui {
 	};
 
 	UI_ERROR GetErrorcode();
+	bool IsNewerVersion(const std::string& current, const std::string& available);
 	bool Init();			// Initializes ImGui
 	void Shutdown();	// Shuts down whole ui
 

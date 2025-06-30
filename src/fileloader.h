@@ -28,6 +28,9 @@ SOFTWARE.
 #include <vector>
 #include <xlnt/xlnt.hpp>
 #include <unordered_set>
+// Splits all worksheets into separate .xlsx files
+void SplitWorksheets(const std::string& filename);
+void EditWorksheet(const std::string& filename, int DATA_row = 0, bool deleteEmptyRows = true);
 
 // Class predefinitions
 class RowInfo;
