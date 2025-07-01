@@ -91,8 +91,10 @@ void Project::Load(const std::string& name) {
 	for (int x = 0; x < amount; x++) {
 		std::getline(file, line);
 		RemoveAllSubstrings(line, "\n");
-		if(line != "")
+		if (line != "" && fs::exists(fs::u8path(line)))
 			m_paths.push_back(line);
+		else if (line != "")
+			logging::logwarning("PROJECT::Project::Load Loaded File does not exist anymore: %s", line.c_str());
 	}
 	SelectFile(selectedFile);
 	// Check if currentFile is not empty and load it with its settings

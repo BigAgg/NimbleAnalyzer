@@ -72,6 +72,8 @@ public:
 	void AddRowData(const RowInfo& rowinfo);
 	// Removes RowInfo at given row index
 	void RemoveData(const int rowIdx);
+	// Clear all data
+	void ClearData();
 	
 	// Returns if the fileInfo is read (file loaded)
 	bool IsReady() const;

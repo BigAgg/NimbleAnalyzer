@@ -1,5 +1,5 @@
 #define Name "NimbleAnalyzer"
-#define Version "0.1.1"
+#define Version "0.1.2"
 #define InstallDir "{commonpf}\NimbleAnalyzer"
 
 

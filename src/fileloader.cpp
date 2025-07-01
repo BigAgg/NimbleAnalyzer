@@ -202,12 +202,18 @@ static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::v
 	// Set the separator to be ';'
 	file << "sep=;" << "\n";
 	// Iterate each row and generate the csv style behavior
+	std::string comma = ",";
+	comma.erase(0, comma.find_first_not_of(" \t\r\n"));
+	comma.erase(comma.find_last_not_of(" \t\r\n") + 1);
 	for (auto&& row : excelSheet) {
 		for (int x = 0; x < row.size(); x++) {
 			std::string val = row[x];	// Get the data
+			ReplaceAllSubstrings(val, "\n", " ");
 			if (x == 0) {
+				if (val == "")
+					continue;
 				// Check if its a number or int else write the value inside '"'
-				if (IsInteger(val) || IsNumber(val)) {
+				if (IsInteger(val) || IsNumber(val) && StrContains(val, comma)) {
 					file << val;
 				}
 				else {
@@ -216,7 +222,9 @@ static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::v
 			}
 			else {
 				file << ';';
-				if (IsInteger(val) || IsNumber(val)) {
+				if (val == "")
+					continue;
+				if (IsInteger(val) || IsNumber(val) && StrContains(val, comma)) {
 					file << val;
 				}
 				else {
@@ -310,7 +318,11 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 				continue;
 			}
 			// Asign cell float value
-			if (IsNumber(value) && !StrContains(value, ".")) {
+			std::string comma = ",";
+			comma.erase(0, comma.find_first_not_of(" \t\r\n"));
+			comma.erase(comma.find_last_not_of(" \t\r\n") + 1);
+
+			if (IsNumber(value) && StrContains(value, comma)) {
 				std::replace(value.begin(), value.end(), ',', '.');
 				float number = std::stof(value);
 				dest_cell.value(number);
@@ -323,8 +335,10 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 				utf8::replace_invalid(value.begin(), value.end(), std::back_inserter(cleaned));
 				dest_cell.value(cleaned);
 			}
-			else
-				dest_cell.value(value, true);
+			else {
+				dest_cell.value(value);
+				dest_cell.number_format(xlnt::number_format::text());
+			}
 		}
 	}
 	// Save the file
@@ -717,6 +731,10 @@ void FileInfo::RemoveData(const int rowIdx){
 	m_rowinfo.erase(m_rowinfo.begin() + rowIdx);
 }
 
+void FileInfo::ClearData(){
+	m_rowinfo.clear();
+}
+
 bool FileInfo::IsReady() const{
 	return m_isready;
 }
@@ -1043,7 +1061,8 @@ void FileSettings::SetMergeFolder(const std::string& folder, const bool ignoreCa
 				m_mergefolderpaths.insert(strpath);
 			}
 		}
-		logging::loginfo("FILELOADER::FileSettings::SetMergeFolder Files to merge: %d", m_mergefolderpaths.size());
+		const std::string parentFname = fs::u8path(m_parentFile->GetFilename()).filename().string();
+		logging::loginfo("FILELOADER::FileSettings::SetMergeFolder Files to merge: %d for File: %s", m_mergefolderpaths.size(), parentFname.c_str());
 	}
 	catch (const fs::filesystem_error& e) {
 		logging::logerror("FIELELOADER::FileSettings::SetMergeFolder Filesystem error: \n%s", e.what());

@@ -121,6 +121,7 @@ namespace engine {
 		// Setup monitor and window position
 		if (engineSettings.device == -1 || engineSettings.device >= GetMonitorCount()) {
 			engineSettings.device = GetCurrentMonitor();
+			SetWindowMonitor(engineSettings.device);
 			Vector2 windowPos = GetWindowPosition();
 			if (windowPos.y < 0)
 				windowPos.y = 0;
@@ -134,6 +135,8 @@ namespace engine {
 	}
 
 	void Shutdown() {
+		if (IsWindowMinimized())
+			RestoreWindow();
 		// Unload images
 		UnloadImage(s_icon);
 		// Updating current Monitor position to load window at same position
@@ -400,6 +403,12 @@ namespace ui {
 				}
 			}
 		}
+		if (ImGui::Button("Guide")) {
+			std::string guidepath = "Nimble Analyzer Guide_ger.pdf";
+			std::string command = "start \"\" \"" + guidepath + "\"";
+			system(command.c_str());
+		}
+		ImGui::SetItemTooltip((char*)u8"Öffnet die NimbleAnalyzer Anleitung");
 		ImGui::EndMainMenuBar();
 	}
 
@@ -593,6 +602,7 @@ namespace ui {
 				fs::path p = fs::u8path(folder);
 				if (fs::exists(p)) {
 					fs::remove(p);
+					current_project->loadedFile.Settings->SetMergeFolder(current_project->loadedFile.Settings->GetMergeFolder(), s_ignoreCache);
 				}
 			}
 		}
@@ -840,9 +850,14 @@ namespace ui {
 			}
 		}
 		std::vector<std::string> consolelog = logging::GetAllMessages();
+		std::string mergedlog = "";
+		for (const std::string& log : consolelog) {
+			mergedlog = log + "\n" + mergedlog;
+		}
 		// Maybe delete this as it is just for debugging? idk
 		ImGui::BeginChild("console", { screenW, screenH - 600 }, 0, flags_nomenu);
-		if (consolelog.size() > 0) {
+		ImGui::InputTextMultiline("## Changes_Input", mergedlog.data(), mergedlog.capacity() + 1, {0, 0}, ImGuiInputTextFlags_ReadOnly);
+		/*if (consolelog.size() > 0) {
 			for (int x = consolelog.size() - 1; x >= 0; x--) {
 				std::string label = consolelog[x] + " ##" + std::to_string(x);
 				if (ImGui::Selectable(label.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick)) {
@@ -851,7 +866,7 @@ namespace ui {
 					}
 				}
 			}
-		}
+		}*/
 		ImGui::EndChild();
 		ImGui::End();
 	}
@@ -902,6 +917,9 @@ namespace ui {
 				rinfo.AddData(header, "");
 			}
 			current_project->loadedFile.AddRowData(rinfo);
+		}
+		if (ImGui::Button((char*)u8"Datensätze löschen")) {
+			current_project->loadedFile.ClearData();
 		}
 		if (ImGui::BeginMenu("Filteroptionen")) {
 			// Reset filters
