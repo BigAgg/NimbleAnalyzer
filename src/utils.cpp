@@ -78,6 +78,23 @@ std::string Convert1252ToUTF8(const std::string& input){
 	return utf8Str;
 }
 
+std::string ConvertUTF8To1252(const std::string& input){
+	int wideLen = MultiByteToWideChar(CP_UTF8, 0, input.c_str(), -1, NULL, 0);
+	if (wideLen == 0) return "";
+
+	std::wstring wideStr(wideLen, 0);
+	MultiByteToWideChar(CP_UTF8, 0, input.c_str(), -1, &wideStr[0], wideLen);
+
+	int ansiLen = WideCharToMultiByte(1252, 0, wideStr.c_str(), -1, NULL, 0, NULL, NULL);
+	if (ansiLen == 0) return "";
+
+	std::string ansiStr(ansiLen, 0);
+	WideCharToMultiByte(1252, 0, wideStr.c_str(), -1, &ansiStr[0], ansiLen, NULL, NULL);
+
+	ansiStr.pop_back(); // remove null terminator
+	return ansiStr;
+}
+
 std::string StrToWstr(const std::string& input){
 	std::wstring wstr;
 	try {

@@ -1003,11 +1003,12 @@ namespace ui {
 					s_filteredData.clear();
 					for (int x = 0; x < data.size(); x++) {
 						RowInfo &rinfo = data[x];
-						const std::string value = rinfo.GetData(filterSettings.header);
+						std::string value = rinfo.GetData(filterSettings.header);
 						if (value == "")
 							continue;
 						else if (!IsNumber(value) && !IsInteger(value))
 							continue;
+						ReplaceAllSubstrings(value, ",", ".");
 						float value_number = std::stof(value);
 						if (value_number > filterSettings.max)
 							s_filteredData.push_back(std::make_pair(x,rinfo));
@@ -1019,11 +1020,12 @@ namespace ui {
 					s_filteredData.clear();
 					for (int x = 0; x < data.size(); x++) {
 						RowInfo &rinfo = data[x];
-						const std::string value = rinfo.GetData(filterSettings.header);
+						std::string value = rinfo.GetData(filterSettings.header);
 						if (value == "")
 							continue;
 						else if (!IsNumber(value) && !IsInteger(value))
 							continue;
+						ReplaceAllSubstrings(value, ",", ".");
 						float value_number = std::stof(value);
 						if (value_number < filterSettings.min)
 							s_filteredData.push_back(std::make_pair(x,rinfo));
@@ -1035,11 +1037,12 @@ namespace ui {
 					s_filteredData.clear();
 					for (int x = 0; x < data.size(); x++) {
 						RowInfo &rinfo = data[x];
-						const std::string value = rinfo.GetData(filterSettings.header);
+						std::string value = rinfo.GetData(filterSettings.header);
 						if (value == "")
 							continue;
 						else if (!IsNumber(value) && !IsInteger(value))
 							continue;
+						ReplaceAllSubstrings(value, ",", ".");
 						float value_number = std::stof(value);
 						if (value_number < filterSettings.min || value_number > filterSettings.max)
 							s_filteredData.push_back(std::make_pair(x,rinfo));
@@ -1049,11 +1052,12 @@ namespace ui {
 					s_filteredData.clear();
 					for (int x = 0; x < data.size(); x++) {
 						RowInfo &rinfo = data[x];
-						const std::string value = rinfo.GetData(filterSettings.header);
+						std::string value = rinfo.GetData(filterSettings.header);
 						if (value == "")
 							continue;
 						else if (!IsNumber(value) && !IsInteger(value))
 							continue;
+						ReplaceAllSubstrings(value, ",", ".");
 						float value_number = std::stof(value);
 						if (value_number < filterSettings.min || value_number > filterSettings.max)
 							s_filteredData.push_back(std::make_pair(x,rinfo));
@@ -1065,11 +1069,12 @@ namespace ui {
 					s_filteredData.clear();
 					for (int x = 0; x < data.size(); x++) {
 						RowInfo &rinfo = data[x];
-						const std::string value = rinfo.GetData(filterSettings.header);
+						std::string value = rinfo.GetData(filterSettings.header);
 						if (value == "")
 							continue;
 						else if (!IsNumber(value) && !IsInteger(value))
 							continue;
+						ReplaceAllSubstrings(value, ",", ".");
 						float value_number = std::stof(value);
 						if (value_number > filterSettings.min && value_number < filterSettings.max)
 							s_filteredData.push_back(std::make_pair(x,rinfo));
@@ -1079,11 +1084,12 @@ namespace ui {
 					s_filteredData.clear();
 					for (int x = 0; x < data.size(); x++) {
 						RowInfo &rinfo = data[x];
-						const std::string value = rinfo.GetData(filterSettings.header);
+						std::string value = rinfo.GetData(filterSettings.header);
 						if (value == "")
 							continue;
 						else if (!IsNumber(value) && !IsInteger(value))
 							continue;
+						ReplaceAllSubstrings(value, ",", ".");
 						float value_number = std::stof(value);
 						if (value_number > filterSettings.min && value_number < filterSettings.max)
 							s_filteredData.push_back(std::make_pair(x,rinfo));

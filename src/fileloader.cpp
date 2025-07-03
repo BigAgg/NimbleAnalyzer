@@ -200,14 +200,14 @@ static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::v
 		return;
 	}
 	// Set the separator to be ';'
-	file << "sep=;" << "\n";
+	file << ConvertUTF8To1252("sep=;\r\n");
 	// Iterate each row and generate the csv style behavior
 	std::string comma = ",";
 	comma.erase(0, comma.find_first_not_of(" \t\r\n"));
 	comma.erase(comma.find_last_not_of(" \t\r\n") + 1);
 	for (auto&& row : excelSheet) {
 		for (int x = 0; x < row.size(); x++) {
-			std::string val = row[x];	// Get the data
+			std::string val = ConvertUTF8To1252(row[x]);	// Get the data
 			ReplaceAllSubstrings(val, "\n", " ");
 			if (x == 0) {
 				if (val == "")
@@ -232,7 +232,7 @@ static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::v
 				}
 			}
 		}
-		file << '\n';	// This row is done, start a new one
+		file << "\r\n";	// This row is done, start a new one
 	}
 }
 
@@ -337,7 +337,8 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 			}
 			else {
 				dest_cell.value(value);
-				dest_cell.number_format(xlnt::number_format::text());
+				if(value != "")
+					dest_cell.number_format(xlnt::number_format::text());
 			}
 		}
 	}

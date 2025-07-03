@@ -1,16 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
 project(NimbleAnalyzer)
 # Project Version 
-set(PROJECT_VERSION "0.1.2")
+set(PROJECT_VERSION "0.1.3")
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 
 # Setting resources
 set(WINDOWS_ICON_RESOURCE "${CMAKE_CURRENT_SOURCE_DIR}/resources.rc")
-
-# Setting compile definitions
-add_compile_definitions(NIMBLE_ANALYZER_VERSION="${PROJECT_VERSION}")
 
 # Add raylib
 add_subdirectory(external/raylib)
@@ -51,6 +48,10 @@ source_group("Header Files" FILES ${HEADER_FILES})
 
 # Building target 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES} ${WINDOWS_ICON_RESOURCE})
+
+# Setting compile definitions
+target_compile_definitions(${PROJECT_NAME} PRIVATE NIMBLE_ANALYZER_VERSION="${PROJECT_VERSION}")
+
 # Setup buildflags
 if(WIN32)
   if(MSVC)
