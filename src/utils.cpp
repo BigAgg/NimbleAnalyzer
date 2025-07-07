@@ -23,6 +23,10 @@ bool StrContains(const std::string& input, const std::string& substring) {
 	return (input.find(substring) != std::string::npos);
 }
 
+bool StrStartswith(const std::string& input, const std::string& start){
+	return input.rfind(start, 0) == 0;
+}
+
 bool StrEndswith(const std::string& input, const std::string& ending){
 	if (ending.size() > input.size()) return false;
 	return std::equal(ending.rbegin(), ending.rend(), input.rbegin());

@@ -99,6 +99,7 @@ namespace engine {
 		fs::create_directory("fonts");
 		fs::create_directory("projects");
 		fs::create_directory("sheets");
+		fs::create_directory("backup");
 		// Loading engine settings
 		if (!LoadSettings()) {
 			logging::logwarning("ENGINE::INIT Could not load settings, using default settings instead!");
@@ -627,6 +628,7 @@ namespace ui {
 		ImGui::SameLine();
 		if (rlImGuiImageButtonSize("Datei speichern", &save_icon, { 30.0f, 30.0f })) {
 			const std::string filename = current_project->loadedFile.GetFilename();
+			BackupFile(filename);
 			current_project->loadedFile.SaveFileAs(filename, filename);
 		}
 		ImGui::SetItemTooltip((char*)u8"Datei speichern (Überschreibt geladene Datei)");

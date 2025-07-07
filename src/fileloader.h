@@ -31,6 +31,7 @@ SOFTWARE.
 // Splits all worksheets into separate .xlsx files
 void SplitWorksheets(const std::string& filename, const std::string& outdir = "sheets/");
 void EditWorksheet(const std::string& filename, int DATA_row = 0, bool deleteEmptyRows = true);
+void BackupFile(const std::string& filename);
 
 // Class predefinitions
 class RowInfo;

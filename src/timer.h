@@ -2,9 +2,6 @@
 
 #include <chrono>
 
-#pragma once
-#include <chrono>
-
 class Timer {
 public:
   Timer() : m_Start(), m_End(), m_LastCheckpoint(), m_Running(false) {}

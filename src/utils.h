@@ -9,6 +9,7 @@ bool IsInteger(const std::string& input);
 // Splits a string into 2 parts at given string
 std::pair<std::string, std::string> Splitlines(const std::string& input, const std::string& splitat);
 bool StrContains(const std::string& input, const std::string& substring);
+bool StrStartswith(const std::string& input, const std::string& start);
 bool StrEndswith(const std::string& input, const std::string& ending);
 void RemoveAllSubstrings(std::string& input, const std::string& toRemove);
 void ReplaceAllSubstrings(std::string& input, const std::string& from, const std::string& to);

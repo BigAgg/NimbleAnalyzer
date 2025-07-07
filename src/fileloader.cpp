@@ -596,6 +596,22 @@ void EditWorksheet(const std::string& filename, int DATA_row, bool deleteEmptyRo
 	}
 }
 
+void BackupFile(const std::string& filename){
+	fs::path path = fs::u8path(filename);
+	const fs::path backupPath = path.parent_path() / "backup";
+	fs::create_directory(backupPath);
+	int count = 5;
+	for (int count = 5; count > 1; --count) {
+		const std::string file = backupPath.string() + "/" + path.filename().string() + ".backup_" + std::to_string(count);
+		std::string next_file = backupPath.string() + "/" + path.filename().string() + ".backup_" + std::to_string(count - 1);
+		if (!fs::exists(next_file)) {
+			continue;
+		}
+		fs::copy_file(next_file, file, fs::copy_options::overwrite_existing);
+	}
+	fs::copy_file(path, backupPath.string() + "/" + path.filename().string() + ".backup_1", fs::copy_options::overwrite_existing);
+}
+
 void FileInfo::LoadFile(const std::string& filename) {
 	if (IsReady())
 		Unload();
