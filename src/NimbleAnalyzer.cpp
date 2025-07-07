@@ -44,8 +44,8 @@ namespace fs = std::filesystem;
 
 static Project new_project;
 static Project *current_project = &new_project;
-static std::vector<Project> projects;
 static int selected_project = -1;
+static std::vector<Project> projects;
 
 static void s_LoadProject(const std::string& name) {
 	std::string projectName = Splitlines(name, "\\").second;	// Get the project name
@@ -58,10 +58,16 @@ static void s_LoadProject(const std::string& name) {
 }
 
 static void s_LoadAllProjects() {
+	std::vector<std::thread> threads;
+	std::vector<std::string> paths;
 	// Iterates through "projects/" and loads every project available
 	for (const auto& dirEntry : fs::directory_iterator("projects")) {
 		const std::u8string u8path = dirEntry.path().u8string();
 		const std::string strpath(u8path.begin(), u8path.end());
+		std::string projectName = Splitlines(strpath, "\\").second;
+		if (projectName == "")
+			continue;
+		paths.push_back(strpath);
 		s_LoadProject(strpath);
 	}
 }
@@ -90,9 +96,9 @@ namespace engine {
 		errorcode = ENGINE_NONE_ERROR;
 		// Setting up needed directories
 		fs::create_directory("bin");
-		fs::create_directory("backup");
 		fs::create_directory("fonts");
 		fs::create_directory("projects");
+		fs::create_directory("sheets");
 		// Loading engine settings
 		if (!LoadSettings()) {
 			logging::logwarning("ENGINE::INIT Could not load settings, using default settings instead!");
@@ -246,6 +252,7 @@ namespace ui {
 
 	static struct {
 		UI_MODE ui_mode = UI_DEFAULT;
+		unsigned int ui_style = 0;
 	} uiSettings;
 
 	static UI_ERROR errorcode = UI_NONE_ERROR;
@@ -308,6 +315,11 @@ namespace ui {
 			}
 		}
 #endif
+		std::ifstream file("bin/ui.bin");
+		if (file) {
+			file.read((char*)&uiSettings, sizeof(uiSettings));
+			uiSettings.ui_mode = UI_DEFAULT;
+		}
 		// initialize filterlist
 		s_filterlist[FILTER_DEFAULT] = "Kein Filter";
 		s_filterlist[FILTER_GREATER_THAN] = (char*)u8"Größer als";
@@ -355,6 +367,18 @@ namespace ui {
 		else {
 			io.FontDefault = font;
 		}
+		switch (uiSettings.ui_style) {
+		case 1:
+			ImGui::StyleColorsClassic();
+			break;
+		case 2:
+			ImGui::StyleColorsDark();
+			break;
+		case 0:
+		default:
+			ImGui::StyleColorsLight();
+			break;
+		}
 		// Remove imgui.ini
 		io.IniFilename = nullptr;
 		// Load Projects
@@ -375,6 +399,10 @@ namespace ui {
 		UnloadTexture(save_icon);
 		UnloadTexture(save_as_icon);
 		rlImGuiShutdown();	// shutdown imgui
+		std::ofstream file("bin/ui.bin");
+		if (file) {
+			file.write((char*)&uiSettings, sizeof(uiSettings));
+		}
 	}
 
 	static void MainMenu() {
@@ -403,12 +431,75 @@ namespace ui {
 				}
 			}
 		}
+		if (ImGui::BeginMenu("Dateieditor")) {
+			if (ImGui::Button("Split Worksheets")) {
+				const std::string filename = OpenFileDialog("Excel Sheet", "xlsx");
+				if (filename != "") {
+					std::string outputFolder = OpenDirectoryDialog();
+					if (outputFolder == "")
+						outputFolder = "sheets/";
+					else
+						outputFolder += "/";
+					SplitWorksheets(filename, outputFolder);
+				}
+			}
+			ImGui::SetItemTooltip("Konvertiert alle Tabellen zu einzelnen xlsx Dateien");
+			if (ImGui::Button("Edit Worksheet")) {
+				const std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
+				if (filename != "") {
+					EditWorksheet(filename, s_rowDataPositionToAdd, s_deleteEmptyLines);
+				}
+			}
+			if (ImGui::Button("Edit Folder")) {
+				const fs::path path = fs::u8path(OpenDirectoryDialog());
+				if (path != "") {
+					if (s_rowDataPositionToAdd > 0 || s_deleteEmptyLines && fs::exists(path)) {
+						for (const auto& entry : fs::directory_iterator(path)) {
+							if (!entry.is_regular_file())
+								continue;
+
+							const std::string fname = entry.path().string();
+
+							// Process only xlsx files starting with "sheet_"
+							if (StrEndswith(fname, ".xlsx") || StrEndswith(fname, ".csv")) {
+								EditWorksheet(fname, s_rowDataPositionToAdd, s_deleteEmptyLines);
+							}
+						}
+					}
+
+				}
+			}
+			ImGui::SetItemTooltip((char*)u8"Bearbeitet gewählte Tabelle mit unten gesetzten Settings");
+			if (ImGui::Checkbox("Leere Zeilen entfernen", &s_deleteEmptyLines));
+			ImGui::SetItemTooltip("Entfernt aus allen gesplitteten Dateien leere Zeilen");
+			ImGui::SetNextItemWidth(100.0f);
+			if (ImGui::InputInt((char*)u8"'DATA' in Reihe einfügen", &s_rowDataPositionToAdd));
+			ImGui::SetItemTooltip((char*)u8"Wenn > 0 -> Fügt eine Reihe vor 'A' ein und fügt 'DATA' an\ngegebener Stelle ein (A:X)");
+			ImGui::EndMenu();
+		}
 		if (ImGui::Button("Guide")) {
 			std::string guidepath = "Nimble Analyzer Guide_ger.pdf";
 			std::string command = "start \"\" \"" + guidepath + "\"";
 			system(command.c_str());
 		}
 		ImGui::SetItemTooltip((char*)u8"Öffnet die NimbleAnalyzer Anleitung");
+
+		if (ImGui::BeginMenu("Style")) {
+			if (ImGui::Button("Dark")) {
+				ImGui::StyleColorsDark();
+				uiSettings.ui_style = 2;
+			}
+			if (ImGui::Button("Classic")) {
+				ImGui::StyleColorsClassic();
+				uiSettings.ui_style = 1;
+			}
+			if (ImGui::Button("Light")) {
+				ImGui::StyleColorsLight();
+				uiSettings.ui_style = 0;
+			}
+			ImGui::EndMenu();
+		}
+
 		ImGui::EndMainMenuBar();
 	}
 
@@ -486,11 +577,12 @@ namespace ui {
 		if (ImGui::BeginListBox("## File Selection", {400.0f, 75.0f})) {
 			const std::vector<std::string> files = current_project->GetFilePaths();
 			const std::string current_file = current_project->GetSelectedFile();
+			int idx = 0;
 			for (const std::string& file : files) {
 				bool selected = (file == current_file);
 				const fs::path p = file;
 				char buff[256];
-				strncpy_s(buff, p.filename().string().c_str(), 256);
+				strncpy_s(buff, (p.filename().string() + " ##" + std::to_string(idx)).c_str(), 256);
 				if (ImGui::Selectable(buff, &selected)) {
 					current_project->Save();
 					current_project->SelectFile(file);
@@ -504,6 +596,7 @@ namespace ui {
 				}
 				if (selected)
 					ImGui::SetItemDefaultFocus();
+				idx++;
 			}
 			ImGui::EndListBox();
 		}
@@ -537,38 +630,6 @@ namespace ui {
 			current_project->loadedFile.SaveFileAs(filename, filename);
 		}
 		ImGui::SetItemTooltip((char*)u8"Datei speichern (Überschreibt geladene Datei)");
-		ImGui::SameLine();
-		if (ImGui::Button("Split Worksheets")) {
-			const std::string filename = OpenFileDialog("Excel Sheet", "xlsx");
-			if (filename != "") {
-				SplitWorksheets(filename);
-				if (s_rowDataPositionToAdd > 0 || s_deleteEmptyLines) {
-					for (const auto& entry : fs::directory_iterator("sheets")) {
-						if (!entry.is_regular_file())
-							continue;
-
-						const std::string fname = entry.path().string();
-
-						// Process only xlsx files starting with "sheet_"
-						if (StrEndswith(fname, ".xlsx") && StrContains(fname, "sheet_")) {
-							logging::loginfo("Editing worksheet: %s", fname);
-							try {
-								EditWorksheet(fname, s_rowDataPositionToAdd, s_deleteEmptyLines);
-							}
-							catch (const std::exception& e) {
-								logging::logerror("NIMBLEANALYZER::DisplayFileSelection::Split_Worksheets %s", e.what());
-							}
-						}
-					}
-				}
-			}
-		}
-		ImGui::SetItemTooltip("Konvertiert alle Tabellen zu einzelnen xlsx Dateien");
-		if (ImGui::Checkbox("Leere Zeilen entfernen", &s_deleteEmptyLines));
-		ImGui::SetItemTooltip("Entfernt aus allen gesplitteten Dateien leere Zeilen");
-		ImGui::SameLine();
-		if (ImGui::InputInt((char*)u8"Datensatz in Reihe hinzufügen", &s_rowDataPositionToAdd));
-		ImGui::SetItemTooltip((char*)u8"Wenn > 0 -> Fügt eine Reihe vor 'A' ein und fügt 'DATA' an\ngegebener Stelle ein (A:X)");
 	}
 
 	static void DisplayFileSettings() {

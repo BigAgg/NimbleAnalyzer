@@ -91,14 +91,19 @@ void Project::Load(const std::string& name) {
 	for (int x = 0; x < amount; x++) {
 		std::getline(file, line);
 		RemoveAllSubstrings(line, "\n");
-		if (line != "" && fs::exists(fs::u8path(line)))
-			m_paths.push_back(line);
-		else if (line != "")
-			logging::logwarning("PROJECT::Project::Load Loaded File does not exist anymore: %s", line.c_str());
+		try {
+			if (line != "" && fs::exists(fs::u8path(line)))
+				m_paths.push_back(line);
+			else if (line != "")
+				logging::logwarning("PROJECT::Project::Load Loaded File does not exist anymore: %s", line.c_str());
+		}
+		catch(std::exception&e) {
+			logging::logerror("PROJECT::Project::Load %s", e.what());
+		}
 	}
 	SelectFile(selectedFile);
 	// Check if currentFile is not empty and load it with its settings
-	if (m_currentFile != "") {
+	if (m_currentFile != "" && loadedFile.GetFilename() != m_currentFile) {
 		loadedFile.LoadFile(m_currentFile);
 		fs::path tmpPath = fs::path(m_currentFile);
 		const std::string tmpstr = tmpPath.filename().string();

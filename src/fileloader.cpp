@@ -140,6 +140,8 @@ std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename
 }
 
 static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string& filename) {
+	Timer t;
+	t.Start();
 	std::vector<std::vector<std::string>> sheetData;
 	// Converting filename to a path
 	fs::path path = fs::u8path(filename);
@@ -165,19 +167,17 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 		wb.load(to_load.wstring());		// Loading excel sheet
 		xlnt::worksheet ws = wb.active_sheet();	// Getting the active sheet
 		// Loading each row
+		int valuesadded = 0;
 		for (auto rows : ws.rows(false)) {
 			std::vector<std::string> rowdata;
 			for (auto cell : rows) {
 				std::string value = cell.to_string();
 				// Check if the value is a float and convert it to be 3 digits precision and convert '.' to ',' (german convertings)
 				if (!IsInteger(value) && cell.has_value() && cell.data_type() == xlnt::cell_type::number) {
-					float number = cell.value<float>();
-					std::ostringstream oss;
-					oss << std::fixed << std::setprecision(3) << number;
-					value = oss.str();
 					std::replace(value.begin(), value.end(), '.', ',');
 				}
 				rowdata.push_back(value);
+				++valuesadded;
 			}
 			testData.push_back(rowdata);
 		}
@@ -187,6 +187,14 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 		logging::logerror("FILELOADER::s_LoadExcelSheet Error loading file: %s", e.what());
 		sheetData.clear();
 	}
+	t.Stop();
+	size_t sheetSize = 0;
+	for (auto& row : sheetData) {
+		for (auto& cell : row) {
+			sheetSize += cell.size();
+		}
+	}
+	logging::loginfo("FILELOADER::s_LoadExcelSheet %s took %f ms to load", path.filename().string().c_str(), t.GetElapsedMilliseconds());
 	return sheetData;
 }
 
@@ -237,6 +245,14 @@ static void s_SaveCSVSheet(const std::string& filename, const std::vector<std::v
 }
 
 static void s_SaveExcelSheet(const std::string& filename, const std::vector<std::vector<std::string>>& excelSheet, const bool overwrite, const std::string& sourcefile) {
+	Timer t;
+	t.Start();
+	size_t sheetSize = 0;
+	for (auto& row : excelSheet) {
+		for (auto& cell : row) {
+			sheetSize += cell.size();
+		}
+	}
 	// Generate the path
 	fs::path path = fs::u8path(filename);
 	// Get what extension the file has and load csv if extension matches it
@@ -283,17 +299,22 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 	// Clear rows beyond max_row
 	for (std::size_t row = max_row + 1; row <= used_max_row; ++row) {
 		for (std::size_t col = 1; col <= used_max_col; ++col) {
-			ws.cell(xlnt::cell_reference(col, row)).clear_value();
+			if(ws.cell(xlnt::cell_reference(col, row)).has_value())
+				ws.cell(xlnt::cell_reference(col, row)).clear_value();
 		}
 	}
 
 	// Clear columns beyond max_col in used rows
 	for (std::size_t row = 1; row <= max_row; ++row) {
 		for (std::size_t col = max_col + 1; col <= used_max_col; ++col) {
-			ws.cell(xlnt::cell_reference(col, row)).clear_value();
+			if(ws.cell(xlnt::cell_reference(col, row)).has_value())
+				ws.cell(xlnt::cell_reference(col, row)).clear_value();
 		}
 	}
-
+	// Setup the german separator 
+	std::string comma = ",";
+	comma.erase(0, comma.find_first_not_of(" \t\r\n"));
+	comma.erase(comma.find_last_not_of(" \t\r\n") + 1);
 	// Iterate and write to the excel sheet's cells
 	for (int x = 0; x < excelSheet.size(); x++) {
 		for (int y = 0; y < excelSheet[x].size(); y++) {
@@ -307,25 +328,25 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 					break;
 				}
 			}
-			if (skip)
-				continue;
 			// Retrieve data from the excelSheet that should be written into the cell
 			std::string value = excelSheet[x][y];
+			if (dest_cell.to_string() == value)
+				skip = true;
+
+			if (skip)
+				continue;
 			// Asign cell integer value
 			if (IsInteger(value)) {
-				int number = std::stoi(value);
-				dest_cell.value(number);
+				dest_cell.value(value, true);
 				continue;
 			}
-			// Asign cell float value
-			std::string comma = ",";
-			comma.erase(0, comma.find_first_not_of(" \t\r\n"));
-			comma.erase(comma.find_last_not_of(" \t\r\n") + 1);
-
+			
+			// Asign cell value number
 			if (IsNumber(value) && StrContains(value, comma)) {
+				dest_cell.value(value, true);
 				std::replace(value.begin(), value.end(), ',', '.');
-				float number = std::stof(value);
-				dest_cell.value(number);
+				//float number = std::stof(value);
+				//dest_cell.value(number);
 				dest_cell.number_format(xlnt::number_format::number_format("0.000")); // 3 decimal digits
 				continue;
 			}
@@ -345,14 +366,17 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 	// Save the file
 	try {
 		wb.save("sheets/to_save.xlsx");
-		if (s_CheckFile("sheets/to_save.xlsx"))
+		if (s_CheckFile("sheets/to_save.xlsx")){
 			wb.save(filename);
+		}
 		else
 			logging::logerror("FILELOADER::s_SaveExcelSheet File got corrupetd: %s", filename.c_str());
 	}
 	catch (std::exception& e) {
 		logging::logerror("FILELOADER::s_SaveExcelSheet File could not be saved: %s", e.what());
 	}
+	t.Stop();
+	logging::loginfo("FILELOADER::s_SaveExcelSheet %s took %f ms to save", filename.c_str(), t.GetElapsedMilliseconds());
 }
 
 void FileInfo::Unload() {
@@ -471,7 +495,7 @@ void FileInfo::SaveSettings(const std::string& path){
 	file << "m_mergeif = " << mergeif.first << " := " << mergeif.second << '\n';
 }
 
-void SplitWorksheets(const std::string& filename){
+void SplitWorksheets(const std::string& filename, const std::string& outdir){
 	if (!StrEndswith(filename, ".xlsx"))
 		return;
 	try {
@@ -495,8 +519,9 @@ void SplitWorksheets(const std::string& filename){
 				}
 			}
 			// Save to file with dynamic name
-			std::string output_filename = "sheets/sheet_" + std::to_string(sheet_index) + "_" + sheet_name + ".xlsx";
-			new_wb.save(output_filename);
+			std::string output_filename = outdir + "sheet_" + std::to_string(sheet_index) + "_" + sheet_name + ".xlsx";
+			fs::path out_path = fs::u8path(output_filename);
+			new_wb.save(out_path);
 			logging::loginfo("FILELOADER::SplitWorksheets Saved splitfile: \n%s", output_filename.c_str());
 
 			++sheet_index;
@@ -508,21 +533,67 @@ void SplitWorksheets(const std::string& filename){
 }
 
 void EditWorksheet(const std::string& filename, int DATA_row, bool deleteEmptyRows){
-	xlnt::workbook wb;
-	wb.load(filename);
-	xlnt::worksheet ws = wb.active_sheet();
-	if (DATA_row > 0) {
-		ws.insert_columns(1, 1);
-		const std::string idx = "A" + std::to_string(DATA_row);
-		ws.cell(idx).value("DATA");
+	try {
+		fs::path path = fs::u8path(filename);
+		fs::path toLoad = fs::u8path(filename);
+		if (StrEndswith(filename, ".csv")) {
+			s_SaveExcelSheet("sheets/to_edit.xlsx", s_LoadCSVSheet(filename), true);
+			toLoad = fs::path("sheets/to_edit.xlsx");
+		}
+		xlnt::workbook wb;
+		wb.load(toLoad);
+		xlnt::worksheet ws = wb.active_sheet();
+		if (DATA_row > 0) {
+			ws.insert_columns(1, 1);
+			const std::string idx = "A" + std::to_string(DATA_row);
+			ws.cell(idx).value("DATA");
+		}
+		int deletedRows = 0;
 		if (deleteEmptyRows) {
-			ws.delete_rows(DATA_row + 1, 1);
-			// Delete all empty rows (from bottom to top to keep indices stable)
-			if (DATA_row <= 0)
-				DATA_row = 1;
+			auto max_row = ws.highest_row();
+
+			// Start from the bottom to avoid index shifting when deleting rows
+			for (int row = static_cast<int>(max_row); row >= 1; --row) {
+				bool isEmpty = true;
+
+				auto first_cell = ws.cell(xlnt::cell_reference(1, row));  // Column A = 1
+
+				if (first_cell.has_value() && first_cell.to_string() == "DATA") {
+					break;  // Stop deleting rows at the DATA row
+				}
+
+				for (auto cell : ws.rows(false)[row - 1]){
+					if (!cell.to_string().empty()) {
+						isEmpty = false;
+						break;
+					}
+				}
+
+				if (isEmpty) {
+					ws.delete_rows(row, 1);
+					++deletedRows;
+				}
+			}
+		}
+		if (StrEndswith(filename, ".csv")) {
+			wb.save(toLoad);
+			s_SaveCSVSheet(filename, s_LoadExcelSheet("sheets/to_edit.xlsx"), true);
+			logging::loginfo("FILELOADER::EditWorksheet Edited worksheet %s: %d and deleted %d rows", filename.c_str(), DATA_row, deletedRows);
+		}
+		else {
+			wb.save("sheets/to_save.xlsx");
+			if (s_CheckFile("sheets/to_save.xlsx")) {
+				wb.save(path);
+				logging::loginfo("FILELOADER::EditWorksheet Edited worksheet %s: %d and deleted %d rows", filename.c_str(), DATA_row, deletedRows);
+			} 
+			else {
+				logging::loginfo("FILELOADER::EditWorksheet File %s Got corrupted while editing and will not be overwritten!", filename.c_str());
+			}
 		}
 	}
-	wb.save(filename);
+	catch (const std::exception& e) {
+		logging::logerror("FILELOADER::EditWorksheet %s", e.what());
+	}
 }
 
 void FileInfo::LoadFile(const std::string& filename) {
@@ -920,7 +991,12 @@ void FileSettings::MergeFiles() {
 			if (m_mergefolderif.first == "") {
 				for (auto& row : mergeData) {
 					if (dontimportvalues.size() > 0) {
-						std::string value = row.GetData(m_dontimportifexistsheader);
+						std::string header_to_check = "";
+						for (auto& pair : m_mergeheadersfolder) {
+							if (pair.first == m_dontimportifexistsheader)
+								header_to_check = pair.second;
+						}
+						std::string value = row.GetData(header_to_check);
 						if (dontimportvalues.find(value) != dontimportvalues.end())
 							continue;
 					}

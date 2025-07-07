@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <filesystem>
+#include "timer.h"
 
 bool IsNumber(const std::string& input);
 bool IsInteger(const std::string& input);
