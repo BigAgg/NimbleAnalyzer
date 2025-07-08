@@ -59,15 +59,10 @@ static void s_LoadProject(const std::string& name) {
 
 static void s_LoadAllProjects() {
 	std::vector<std::thread> threads;
-	std::vector<std::string> paths;
 	// Iterates through "projects/" and loads every project available
 	for (const auto& dirEntry : fs::directory_iterator("projects")) {
 		const std::u8string u8path = dirEntry.path().u8string();
 		const std::string strpath(u8path.begin(), u8path.end());
-		std::string projectName = Splitlines(strpath, "\\").second;
-		if (projectName == "")
-			continue;
-		paths.push_back(strpath);
 		s_LoadProject(strpath);
 	}
 }
@@ -239,6 +234,8 @@ namespace ui {
 		FILTER_IN_RANGE,
 		FILTER_EMPTY,
 		FILTER_NOT_EMPTY,
+		FILTER_MIN,
+		FILTER_MAX,
 		FILTERS,
 		FILTER_DEFAULT = FILTER_NONE
 	};
@@ -318,8 +315,13 @@ namespace ui {
 #endif
 		std::ifstream file("bin/ui.bin");
 		if (file) {
+			bool update = false;
+			if (uiSettings.ui_mode == UI_UPDATE_WINDOW)
+				update = true;
 			file.read((char*)&uiSettings, sizeof(uiSettings));
 			uiSettings.ui_mode = UI_DEFAULT;
+			if (update)
+				uiSettings.ui_mode = UI_UPDATE_WINDOW;
 		}
 		// initialize filterlist
 		s_filterlist[FILTER_DEFAULT] = "Kein Filter";
@@ -329,6 +331,8 @@ namespace ui {
 		s_filterlist[FILTER_IN_RANGE] = "Innerhalb Toleranz";
 		s_filterlist[FILTER_EMPTY] = "Leeres Feld";
 		s_filterlist[FILTER_NOT_EMPTY] = (char*)u8"Ausgefülltes Feld";
+		s_filterlist[FILTER_MIN] = "Niedrigster Wert";
+		s_filterlist[FILTER_MAX] = (char*)u8"Höchster Wert";
 		// Check if the engine is initialized
 		if (engine::GetErrorcode() != engine::ENGINE_NONE_ERROR) {
 			errorcode = UI_INIT_ERROR;
@@ -499,6 +503,9 @@ namespace ui {
 				uiSettings.ui_style = 0;
 			}
 			ImGui::EndMenu();
+		}
+		if (ImGui::Button("Update")) {
+			uiSettings.ui_mode = UI_UPDATE_WINDOW;
 		}
 
 		ImGui::EndMainMenuBar();
@@ -1034,6 +1041,7 @@ namespace ui {
 					bool selected = (x == s_filtermode);
 					if (ImGui::Selectable(fl.c_str(), &selected)) {
 						s_filtermode = static_cast<FILTER_MODE>(x);
+						s_filteredData.clear();
 					}
 					if (selected)
 						ImGui::SetItemDefaultFocus();
@@ -1061,6 +1069,64 @@ namespace ui {
 			// Now apply the different filter methods (create different functions for it?)
 			// Definetly needs a refactor i think but its working fine rn
 			switch (s_filtermode) {
+			case FILTER_MIN:
+				if (ImGui::Button("Filter anwenden")) {
+					float value_min;
+					s_filteredData.clear();
+					for (int x = 0; x < data.size(); x++) {
+						RowInfo& rinfo = data[x];
+						std::string value = rinfo.GetData(filterSettings.header);
+						if (value == "")
+							continue;
+						if (!IsNumber(value) && !IsInteger(value))
+							continue;
+						ReplaceAllSubstrings(value, ",", ".");
+						float value_number = std::stof(value);
+						if (x == 0) {
+							value_min = value_number;
+							s_filteredData.push_back(std::make_pair(x, rinfo));
+							continue;
+						}
+						if (value_min > value_number) {
+							s_filteredData.clear();
+							value_min = value_number;
+							s_filteredData.push_back(std::make_pair(x, rinfo));
+						}
+						else if (value_min == value_number) {
+							s_filteredData.push_back(std::make_pair(x, rinfo));
+						}
+					}
+				}
+				break;
+			case FILTER_MAX:
+				if (ImGui::Button("Filter anwenden")) {
+					float value_max;
+					s_filteredData.clear();
+					for (int x = 0; x < data.size(); x++) {
+						RowInfo& rinfo = data[x];
+						std::string value = rinfo.GetData(filterSettings.header);
+						if (value == "")
+							continue;
+						if (!IsNumber(value) && !IsInteger(value))
+							continue;
+						ReplaceAllSubstrings(value, ",", ".");
+						float value_number = std::stof(value);
+						if (x == 0) {
+							value_max = value_number;
+							s_filteredData.push_back(std::make_pair(x, rinfo));
+							continue;
+						}
+						if (value_max < value_number) {
+							s_filteredData.clear();
+							value_max = value_number;
+							s_filteredData.push_back(std::make_pair(x, rinfo));
+						}
+						else if (value_max == value_number) {
+							s_filteredData.push_back(std::make_pair(x, rinfo));
+						}
+					}
+				}
+				break;
 			case FILTER_GREATER_THAN:
 				if (ImGui::InputFloat("Max", &filterSettings.max)) {
 					s_filteredData.clear();

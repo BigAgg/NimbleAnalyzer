@@ -103,7 +103,7 @@ void Project::Load(const std::string& name) {
 	}
 	SelectFile(selectedFile);
 	// Check if currentFile is not empty and load it with its settings
-	if (m_currentFile != "" && loadedFile.GetFilename() != m_currentFile) {
+	if (m_currentFile != "") {
 		loadedFile.LoadFile(m_currentFile);
 		fs::path tmpPath = fs::path(m_currentFile);
 		const std::string tmpstr = tmpPath.filename().string();

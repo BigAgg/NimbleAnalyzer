@@ -176,6 +176,9 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 				if (!IsInteger(value) && cell.has_value() && cell.data_type() == xlnt::cell_type::number) {
 					std::replace(value.begin(), value.end(), '.', ',');
 				}
+				if (cell.has_formula() && value[0] == '#') {
+					value = "";
+				}
 				rowdata.push_back(value);
 				++valuesadded;
 			}
@@ -299,7 +302,7 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 	// Clear rows beyond max_row
 	for (std::size_t row = max_row + 1; row <= used_max_row; ++row) {
 		for (std::size_t col = 1; col <= used_max_col; ++col) {
-			if(ws.cell(xlnt::cell_reference(col, row)).has_value())
+			if(!ws.cell(xlnt::cell_reference(col, row)).has_formula() && ws.cell(xlnt::cell_reference(col, row)).has_value())
 				ws.cell(xlnt::cell_reference(col, row)).clear_value();
 		}
 	}
@@ -307,7 +310,7 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 	// Clear columns beyond max_col in used rows
 	for (std::size_t row = 1; row <= max_row; ++row) {
 		for (std::size_t col = max_col + 1; col <= used_max_col; ++col) {
-			if(ws.cell(xlnt::cell_reference(col, row)).has_value())
+			if(!ws.cell(xlnt::cell_reference(col, row)).has_formula() && ws.cell(xlnt::cell_reference(col, row)).has_value())
 				ws.cell(xlnt::cell_reference(col, row)).clear_value();
 		}
 	}
@@ -328,13 +331,24 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 					break;
 				}
 			}
-			// Retrieve data from the excelSheet that should be written into the cell
-			std::string value = excelSheet[x][y];
-			if (dest_cell.to_string() == value)
+			if (dest_cell.has_formula()) {
+				logging::loginfo("Skipping this cell: %d:%d", y+1, x+1);
 				skip = true;
+			}
+			// Retrieve data from the excelSheet that should be written into the cell
 
 			if (skip)
 				continue;
+			std::string value = excelSheet[x][y];
+
+			if (dest_cell.to_string() == value)
+				continue;
+
+			if (value[0] == '=') {
+				dest_cell.formula(value);
+				continue;
+			}
+
 			// Asign cell integer value
 			if (IsInteger(value)) {
 				dest_cell.value(value, true);
@@ -1049,7 +1063,8 @@ void FileSettings::MergeFiles() {
 							continue;
 						for (auto& pair : m_mergeheadersfolder) {
 							std::string new_val = merge_row.GetData(pair.second);
-							if (new_val != "") {
+							if (new_val != "" && value != new_val) {
+
 								row.UpdateData(pair.first, new_val);
 								cellsImported++;
 							}
@@ -1091,7 +1106,7 @@ void FileSettings::MergeFiles() {
 				continue;
 			for (auto& pair : m_mergeheaders) {
 				std::string new_val = merge_row.GetData(pair.second);
-				if (new_val != "") {
+				if (new_val != "" && new_val != value) {
 					row.UpdateData(pair.first, new_val);
 					cellsImported++;
 				}
