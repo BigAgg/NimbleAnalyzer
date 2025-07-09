@@ -223,6 +223,58 @@ namespace engine {
 		ui::HandleUI();
 		EndDrawing();
 	}
+
+	void ErrorWindow(){
+		InitWindow(640, 480, "NimbleAnalyzer ERROR WINDOW");
+		SetTargetFPS(30);
+		rlImGuiSetup(false);
+		ImGui::StyleColorsLight();
+		// Remove imgui.ini
+		ImGuiIO& io = ImGui::GetIO();
+		io.IniFilename = nullptr;
+
+		std::string runlogcontent = "";
+		std::string line;
+		std::ifstream file("run.log");
+		if(file)
+		while (std::getline(file, line)) {
+			runlogcontent += line + "\n";
+		}
+
+		const fs::path crashpath = fs::u8path("Y:/Produktion/Software & Tools/NimbleAnalyzer/src/output/CRASHES");
+		bool close = false;
+		while (!WindowShouldClose() && !close) {
+			float screenW = static_cast<float>(GetScreenWidth());
+			float screenH = static_cast<float>(GetScreenHeight());
+			BeginDrawing();
+			ClearBackground(BLACK);
+			rlImGuiBegin();
+			ImGui::SetNextWindowPos({ 0, 0 });
+			ImGui::SetNextWindowSize({ screenW, screenH });
+			ImGui::Begin("ERROR WINDOW");
+			ImGui::SeparatorText("Error Log");
+			if (fs::exists("run.log") && fs::exists(crashpath) && ImGui::Button("Submit Error")) {
+				int count = 0;
+				for (auto& entry : fs::directory_iterator(crashpath)) {
+					if (!fs::is_regular_file(entry))
+						continue;
+					const std::string filename = entry.path().filename().string();
+					if(!StrStartswith(filename, "crash_") || !StrEndswith(filename, ".log"))
+						continue;
+					++count;
+				}
+				const std::string crashfilename = crashpath.string() + "/crash_" + std::to_string(count) + ".log";
+				fs::copy_file("run.log", crashfilename, fs::copy_options::overwrite_existing);
+				close = true;
+			}
+			ImGui::InputTextMultiline("## ERROR LOG", runlogcontent.data(), runlogcontent.capacity() + 1, {screenW, screenH - 100.0f}, ImGuiInputTextFlags_ReadOnly);
+			ImGui::End();
+			rlImGuiEnd();
+			EndDrawing();
+		}
+		rlImGuiShutdown();
+		CloseWindow();
+	}
 };
 
 namespace ui {

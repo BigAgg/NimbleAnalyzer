@@ -5,6 +5,7 @@ int main(int argc, char *argv[]) {
 #ifdef NDEBUG
   logging::startlogging("", "run.log"); // log to file in Release mode
 #endif
+  bool error = false;
   if (!engine::Init())
     return engine::GetErrorcode();
   if (!ui::Init())
@@ -14,12 +15,15 @@ int main(int argc, char *argv[]) {
   }
   catch (std::exception& e) {
     logging::logerror("MAIN Programm crashed: %s", e.what());
+    error = true;
   }
 	ui::Shutdown();
 	engine::Shutdown();
 #ifdef NDEBUG
   logging::stoplogging();
 #endif
+  if(error)
+    engine::ErrorWindow();
   return 0;
 }
 

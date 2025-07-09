@@ -46,6 +46,8 @@ namespace engine {
 
 	void Run();						// Main loop
 	void Render();				// Render function
+
+	void ErrorWindow();		// When error run this window to show what error happened
 };
 
 namespace ui {
