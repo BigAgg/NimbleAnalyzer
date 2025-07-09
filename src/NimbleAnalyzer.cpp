@@ -51,6 +51,13 @@ static void s_LoadProject(const std::string& name) {
 	std::string projectName = Splitlines(name, "\\").second;	// Get the project name
 	if (projectName == "")
 		return;
+	for (auto& project : projects) {
+		if (project.GetName() == projectName) {
+			project.Unload();
+			project.Load(projectName);
+			return;
+		}
+	}
 	// Generate the project and load it
 	projects.push_back(Project());
 	projects.back().SetName(projectName);
@@ -58,9 +65,10 @@ static void s_LoadProject(const std::string& name) {
 }
 
 static void s_LoadAllProjects() {
-	std::vector<std::thread> threads;
 	// Iterates through "projects/" and loads every project available
 	for (const auto& dirEntry : fs::directory_iterator("projects")) {
+		if (!fs::is_directory(dirEntry))
+			continue;
 		const std::u8string u8path = dirEntry.path().u8string();
 		const std::string strpath(u8path.begin(), u8path.end());
 		s_LoadProject(strpath);
@@ -538,6 +546,21 @@ namespace ui {
 					selected_project = static_cast<int>(projects.size()) - 1;
 				}
 			}
+			ImGui::SameLine();
+			if (ImGui::Button("Importieren")) {
+				const std::string path = OpenDirectoryDialog();
+				fs::path destination_base = "projects";
+				if (path != "") {
+					fs::path fspath = fs::u8path(path);
+					if (fs::exists(fspath)) {
+						fs::path destination = destination_base / fspath.filename();
+						fs::copy(fspath, destination, fs::copy_options::recursive | fs::copy_options::overwrite_existing);
+						const std::u8string u8path = destination.u8string();
+						const std::string strpath(u8path.begin(), u8path.end());
+						s_LoadProject(strpath);
+					}
+				}
+			}
 			ImGui::EndMenu();
 		}
 		ImGui::EndMenuBar();
@@ -558,7 +581,7 @@ namespace ui {
 					current_project->Save();
 					selected_project = x;
 					current_project = &projects[x];
-					current_project->Load(name);
+					//current_project->Load(name);
 					s_hiddenHeaders.clear();
 				}
 				if (selected)
