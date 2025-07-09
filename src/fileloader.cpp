@@ -197,7 +197,7 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 			sheetSize += cell.size();
 		}
 	}
-	logging::loginfo("FILELOADER::s_LoadExcelSheet %s took %f ms to load", path.filename().string().c_str(), t.GetElapsedMilliseconds());
+	//logging::loginfo("FILELOADER::s_LoadExcelSheet %s took %f ms to load", path.filename().string().c_str(), t.GetElapsedMilliseconds());
 	return sheetData;
 }
 
@@ -689,6 +689,8 @@ void FileInfo::LoadFile(const std::string& filename) {
 		}
 	}
 	// Check if there was no data at all and add one filler data to not crash when saving lol
+	/*
+	* Deprecated as the mergin was fixed
 	if (m_rowinfo.size() == 0) {
 		RowInfo rinfo;
 		for (auto&& header : m_headerinfo) {
@@ -696,6 +698,7 @@ void FileInfo::LoadFile(const std::string& filename) {
 		}
 		m_rowinfo.push_back(rinfo);
 	}
+	*/
 	Settings = new FileSettings();
 	Settings->SetParentFile(this);
 	m_filename = filename;

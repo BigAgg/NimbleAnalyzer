@@ -336,6 +336,8 @@ namespace ui {
 	}
 	
 	// Variables for filtering data and contents
+	static size_t s_logsize = 0;
+	static std::string s_mergedlog = "";
 	static std::vector<std::string> s_hiddenHeaders;
 	static bool s_ignoreCache = false;
 	static std::string s_viewmode = "horizontal-noheader";
@@ -482,6 +484,8 @@ namespace ui {
 			uiSettings.ui_mode = UI_DATA_VIEW_WINDOW;
 		}
 		// Error output
+		/*
+		* Deprecated, no longer needed as crash window is now active
 		if (ImGui::Button("Errors in txt")) {
 			std::ofstream file("errors.txt");
 			if (file) {
@@ -496,6 +500,7 @@ namespace ui {
 				}
 			}
 		}
+		*/
 		if (ImGui::BeginMenu("Dateieditor")) {
 			if (ImGui::Button("Split Worksheets")) {
 				const std::string filename = OpenFileDialog("Excel Sheet", "xlsx");
@@ -994,14 +999,23 @@ namespace ui {
 				}
 			}
 		}
-		std::vector<std::string> consolelog = logging::GetAllMessages();
-		std::string mergedlog = "";
-		for (const std::string& log : consolelog) {
-			mergedlog = log + "\n" + mergedlog;
+		const std::vector<std::string> &consolelog = logging::GetAllMessages();
+		if (consolelog.size() > s_logsize) {
+			for (int x = s_logsize; x < consolelog.size(); x++) {
+				std::string message = consolelog[x];
+				while (StrContains(message, "::")) {
+					message = Splitlines(message, "::").second;
+				}
+				message = Splitlines(message, " ").second;
+				message = Convert1252ToUTF8(message);
+				s_mergedlog = message + "\n" + s_mergedlog;
+			}
+			s_logsize = consolelog.size();
 		}
 		// Maybe delete this as it is just for debugging? idk
 		ImGui::BeginChild("console", { screenW, screenH - 600 }, 0, flags_nomenu);
-		ImGui::InputTextMultiline("## Changes_Input", mergedlog.data(), mergedlog.capacity() + 1, {0, 0}, ImGuiInputTextFlags_ReadOnly);
+		ImGui::SeparatorText("Console");
+		ImGui::InputTextMultiline("## Changes_Input", s_mergedlog.data(), s_mergedlog.capacity() + 1, {static_cast<float>(screenW - 75), 0}, ImGuiInputTextFlags_ReadOnly);
 		/*if (consolelog.size() > 0) {
 			for (int x = consolelog.size() - 1; x >= 0; x--) {
 				std::string label = consolelog[x] + " ##" + std::to_string(x);
