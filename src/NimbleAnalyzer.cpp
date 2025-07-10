@@ -719,6 +719,12 @@ namespace ui {
 			current_project->loadedFile.SaveFileAs(filename, filename);
 		}
 		ImGui::SetItemTooltip((char*)u8"Datei speichern (Überschreibt geladene Datei)");
+		ImGui::SameLine();
+		if (ImGui::Button("Daten Mergen")) {
+			current_project->loadedFile.Settings->MergeFiles();
+			s_ignoreCache = false;
+		}
+		ImGui::SetItemTooltip((char*)u8"Merged alle Daten für gewählte Datei");
 	}
 
 	static void DisplayFileSettings() {
@@ -774,10 +780,13 @@ namespace ui {
 
 	static void DisplayHeaderMergeSettings() {
 		// Merging button and handling
+		/*
+		* Moved to file selection 10.07.2025
 		if (ImGui::Button("Daten Mergen")) {
 			current_project->loadedFile.Settings->MergeFiles();
 			s_ignoreCache = false;
 		}
+		*/
 	
 		// Retrieve data for displaying settings
 		auto headers = current_project->loadedFile.GetHeaderNames();
@@ -876,17 +885,22 @@ namespace ui {
 		auto headerif = current_project->loadedFile.Settings->GetMergeFolderIf();
 		std::string dontimportif = current_project->loadedFile.Settings->GetDontImportIf();
 
+		ImGui::SeparatorText("Einstellungen Mergefolder");
 		// Top menubar
-		ImGui::BeginMenuBar();
 		// merging data
+		/*
+		* Moved to File selection 10.07.2025
 		if (ImGui::Button("Daten Mergen")) {
 			current_project->loadedFile.Settings->MergeFiles();
 			s_ignoreCache = false;
 		}
+		*/
 		// Combo to select a header, this header is being ignored when importing data
 		// which means that if this headers value already exists in the sourcefile
 		// it doesnt get imported again
 		ImGui::Text("Daten Ignorieren wenn Header");
+		ImGui::SameLine();
+		ImGui::SetNextItemWidth(300.0f);
 		if (ImGui::BeginCombo("## Header ignorieren", dontimportif.c_str())) {
 			bool noneselect = (dontimportif == "NONE");
 			if (ImGui::Selectable("NONE", &noneselect)) {
@@ -902,7 +916,6 @@ namespace ui {
 			}
 			ImGui::EndCombo();
 		}
-		ImGui::EndMenuBar();
 		
 		// Simply the header selection same as in function above where we have a combo
 		// To select import headers foreach source header
@@ -977,15 +990,10 @@ namespace ui {
 				ImGui::BeginChild("File settings window", { 500.0f, 170.0f }, 0, flags_nomenu);
 				DisplayFileSettings();
 				ImGui::EndChild();
-				ImGui::BeginChild("Header settings", { 300.0f, 250.0f }, 0, flags_nomenu);
-				ImGui::SeparatorText("Werte ausblenden");
-				DisplayHeaderSettings();
-				ImGui::EndChild();
 				// Diplay merging settings if mergefile is loaded
 				if (current_project->loadedFile.Settings->GetMergeFile().IsReady()) {
-					ImGui::SameLine();
 					ImGui::BeginChild("Header merge settings window", { 700.0f, 250.0f }, 0, flags_nomenu);
-					ImGui::SeparatorText((char*)u8"Merge header wählen");
+					ImGui::SeparatorText((char*)u8"Einstellungen Mergefile");
 					DisplayHeaderMergeSettings();
 					ImGui::EndChild();
 				}
@@ -993,7 +1001,7 @@ namespace ui {
 				if (current_project->loadedFile.Settings->IsMergeFolderSet()
 					&& current_project->loadedFile.Settings->GetMergeFolderTemplate().IsReady()) {
 					ImGui::SameLine();
-					ImGui::BeginChild("Header folder merge settings window", { 700, 250.0f }, 0, flags);
+					ImGui::BeginChild("Header folder merge settings window", { 700, 250.0f }, 0, flags_nomenu);
 					DisplayHeaderMergeFolderSettings();
 					ImGui::EndChild();
 				}
@@ -1003,10 +1011,20 @@ namespace ui {
 		if (consolelog.size() > s_logsize) {
 			for (int x = s_logsize; x < consolelog.size(); x++) {
 				std::string message = consolelog[x];
+				bool error = false;
+				bool warning = false;
+				if (StrContains(message, "ERROR"))
+					error = true;
+				else if (StrContains(message, "WARNING"))
+					warning = true;
 				while (StrContains(message, "::")) {
 					message = Splitlines(message, "::").second;
 				}
 				message = Splitlines(message, " ").second;
+				if (error)
+					message = "ERROR: " + message;
+				else if (warning)
+					message = "WARNING: " + message;
 				message = Convert1252ToUTF8(message);
 				s_mergedlog = message + "\n" + s_mergedlog;
 			}
@@ -1015,17 +1033,15 @@ namespace ui {
 		// Maybe delete this as it is just for debugging? idk
 		ImGui::BeginChild("console", { screenW, screenH - 600 }, 0, flags_nomenu);
 		ImGui::SeparatorText("Console");
+		bool timingsEnabled = IsTimings();
+		if (ImGui::Checkbox("Enable Timings", &timingsEnabled)) {
+			if (timingsEnabled)
+				EnableTimings();
+			else
+				DisableTimings();
+		}
+		ImGui::SetItemTooltip("Toggles logging timings for loading and saving xlsx files");
 		ImGui::InputTextMultiline("## Changes_Input", s_mergedlog.data(), s_mergedlog.capacity() + 1, {static_cast<float>(screenW - 75), 0}, ImGuiInputTextFlags_ReadOnly);
-		/*if (consolelog.size() > 0) {
-			for (int x = consolelog.size() - 1; x >= 0; x--) {
-				std::string label = consolelog[x] + " ##" + std::to_string(x);
-				if (ImGui::Selectable(label.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick)) {
-					if (ImGui::IsMouseDoubleClicked(0)) {
-						ImGui::SetClipboardText(consolelog[x].c_str());
-					}
-				}
-			}
-		}*/
 		ImGui::EndChild();
 		ImGui::End();
 	}
@@ -1346,8 +1362,10 @@ namespace ui {
 		}
 		ImGui::EndMenuBar();
 		// Dataview drawing headers if needed
+		std::string sets = (char*)u8"Datensätze verfügbar: " + std::to_string(data.size());
 		if (s_viewmode == "horizontal-noheader") {
-			ImGui::BeginChild("headers", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()) + 50.0f, 25.0f});
+			ImGui::BeginChild("headers", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()) + 50.0f, 55.0f});
+			ImGui::SeparatorText(sets.c_str());
 			ImGui::Button(" X ");
 			ImGui::SameLine();
 			int idx = 0;
@@ -1369,7 +1387,7 @@ namespace ui {
 			ImGui::EndChild();
 		}
 		ImGui::Separator();
-		ImGui::BeginChild("dataview", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()) + 50.0f, screenH - 125.0f}, 0, flags_nomenu);
+		ImGui::BeginChild("dataview", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()) + 50.0f, screenH - 155.0f}, 0, flags_nomenu);
 		// Now drawing the filtered data if there is any
 		if (s_filteredData.size() == 0 && s_filter == "") {
 			int x = 0;

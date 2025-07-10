@@ -197,7 +197,8 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 			sheetSize += cell.size();
 		}
 	}
-	//logging::loginfo("FILELOADER::s_LoadExcelSheet %s took %f ms to load", path.filename().string().c_str(), t.GetElapsedMilliseconds());
+	if(IsTimings())
+		logging::loginfo("FILELOADER::s_LoadExcelSheet %s took %f ms to load", path.filename().string().c_str(), t.GetElapsedMilliseconds());
 	return sheetData;
 }
 
@@ -390,7 +391,8 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 		logging::logerror("FILELOADER::s_SaveExcelSheet File could not be saved: %s", e.what());
 	}
 	t.Stop();
-	logging::loginfo("FILELOADER::s_SaveExcelSheet %s took %f ms to save", filename.c_str(), t.GetElapsedMilliseconds());
+	if(IsTimings())
+		logging::loginfo("FILELOADER::s_SaveExcelSheet %s took %f ms to save", filename.c_str(), t.GetElapsedMilliseconds());
 }
 
 void FileInfo::Unload() {
@@ -624,6 +626,19 @@ void BackupFile(const std::string& filename){
 		fs::copy_file(next_file, file, fs::copy_options::overwrite_existing);
 	}
 	fs::copy_file(path, backupPath.string() + "/" + path.filename().string() + ".backup_1", fs::copy_options::overwrite_existing);
+}
+
+static bool s_timingsEnabled = false;
+void EnableTimings(){
+	s_timingsEnabled = true;
+}
+
+void DisableTimings(){
+	s_timingsEnabled = false;
+}
+
+bool IsTimings() {
+	return s_timingsEnabled;
 }
 
 void FileInfo::LoadFile(const std::string& filename) {
