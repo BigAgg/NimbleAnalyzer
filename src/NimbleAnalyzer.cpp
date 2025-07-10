@@ -991,16 +991,19 @@ namespace ui {
 				DisplayFileSettings();
 				ImGui::EndChild();
 				// Diplay merging settings if mergefile is loaded
+				bool sameline = false;
 				if (current_project->loadedFile.Settings->GetMergeFile().IsReady()) {
 					ImGui::BeginChild("Header merge settings window", { 700.0f, 250.0f }, 0, flags_nomenu);
 					ImGui::SeparatorText((char*)u8"Einstellungen Mergefile");
 					DisplayHeaderMergeSettings();
 					ImGui::EndChild();
+					sameline = true;
 				}
 				// Display merge folder settings if mergefolder is set
 				if (current_project->loadedFile.Settings->IsMergeFolderSet()
 					&& current_project->loadedFile.Settings->GetMergeFolderTemplate().IsReady()) {
-					ImGui::SameLine();
+					if(sameline)
+						ImGui::SameLine();
 					ImGui::BeginChild("Header folder merge settings window", { 700, 250.0f }, 0, flags_nomenu);
 					DisplayHeaderMergeFolderSettings();
 					ImGui::EndChild();

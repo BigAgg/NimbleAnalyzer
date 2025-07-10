@@ -1,5 +1,5 @@
 #define Name "NimbleAnalyzer"
-#define Version "0.1.9"
+#define Version "0.2.0"
 #define InstallDir "{commonpf}\NimbleAnalyzer"
 
 
@@ -11,7 +11,7 @@ DefaultDirName={#InstallDir}
 DisableDirPage=no
 DefaultGroupName={#Name}
 OutputDir=.\output
-OutputBaseFilename=setup_{#Name}
+OutputBaseFilename=_setup_{#Name}
 Compression=lzma
 SolidCompression=yes
 LicenseFile=LICENSE

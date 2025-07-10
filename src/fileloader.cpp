@@ -64,6 +64,8 @@ static bool s_CheckFile(const std::string& filename) {
 }
 
 std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename) {
+	Timer t;
+	t.Start();
 	std::vector<std::vector<std::string>> sheetData;
 	fs::path path = fs::u8path(filename);
 
@@ -135,7 +137,9 @@ std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename
 		logging::logerror("FILELOADER::s_LoadCSVSheet Could not load file: %s\nERROR: %s", filename.c_str(), e.what());
 		return {};
 	}
-
+	t.Stop();
+	if(IsTimings())
+		logging::loginfo("FILELOADER::s_LoadCSVSheet %s took %f ms to load", path.filename().string().c_str(), t.GetElapsedMilliseconds());
 	return sheetData;
 }
 
@@ -148,16 +152,19 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 	const std::string extension = path.filename().extension().string();
 	// Check if the file is a csv and call its load function instead
 	if (extension == ".csv" || extension == ".CSV") {
+		t.Stop();
 		return s_LoadCSVSheet(filename);
 	}
 	// Checking if the file exists
 	if (!fs::exists(path)) {
 		logging::logwarning("FILELOADER::s_LoadExcelSheet File does not exist: %s", filename.c_str());
+		t.Stop();
 		return sheetData;
 	}
 	// Check if the file is loadable
 	if (!s_CheckFile(path.string())) {
 		logging::logwarning("FILELOADER::s_LoadExcelSheet Error loading file: %s", filename.c_str());
+		t.Stop();
 		return sheetData;
 	}
 	try {
@@ -278,10 +285,11 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 	}
 	// Check if a sourcefile should be loaded and load it
 	if (sourcefile != "") {
+		const std::string source_extension = sourcepath.filename().extension().string();
 		if (!s_CheckFile(path.string())) {
 			logging::logwarning("FILELOADER::s_SaveExcelSheet filecheking failure for sourcefile: %s", sourcefile.c_str());
 		}
-		else {
+		else if (source_extension == ".xlsx" || source_extension == ".XLSX") {
 			wb.load(sourcepath.wstring());
 		}
 	}
