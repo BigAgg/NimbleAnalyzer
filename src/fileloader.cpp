@@ -359,18 +359,20 @@ static void s_SaveExcelSheet(const std::string& filename, const std::vector<std:
 			}
 
 			// Asign cell integer value
-			if (IsInteger(value)) {
-				dest_cell.value(value, true);
+			if (IsInteger(value) && (value[0] != '0' || value.size() == 1)) {
+				int intval = std::stoi(value);
+				dest_cell.value(intval);
+				dest_cell.number_format(xlnt::number_format::number());
 				continue;
 			}
 			
 			// Asign cell value number
 			if (IsNumber(value) && StrContains(value, comma)) {
-				dest_cell.value(value, true);
+				const std::string cell_val = dest_cell.to_string();
 				std::replace(value.begin(), value.end(), ',', '.');
-				//float number = std::stof(value);
-				//dest_cell.value(number);
-				dest_cell.number_format(xlnt::number_format::number_format("0.000")); // 3 decimal digits
+				if (cell_val == value)
+					continue;
+				dest_cell.value(value, true);
 				continue;
 			}
 			// Asign cell value string
@@ -1150,6 +1152,11 @@ void FileSettings::SetMergeFolder(const std::string& folder, const bool ignoreCa
 	fs::path path = fs::u8path(folder);
 	m_mergefolderpaths.clear();
 
+	if (!m_parentFile) {
+		logging::logerror("FILELOADER::FileSettings::SetMergeFolder Parent File is not setup!");
+		return;
+	}
+
 	try {
 		if (!fs::exists(path)) {
 			logging::loginfo("FILELOADER::FileSettings::SetMergeFolder Directory is not valid: %s", folder);
@@ -1199,12 +1206,11 @@ void FileSettings::SetMergeFolder(const std::string& folder, const bool ignoreCa
 		logging::loginfo("FILELOADER::FileSettings::SetMergeFolder Files to merge: %d for File: %s", m_mergefolderpaths.size(), parentFname.c_str());
 	}
 	catch (const fs::filesystem_error& e) {
-		logging::logerror("FIELELOADER::FileSettings::SetMergeFolder Filesystem error: \n%s", e.what());
+		logging::logerror("FIELELOADER::FileSettings::SetMergeFolder Filesystem error: %s", e.what());
 		return;
 	}
 	catch (const std::exception& e) {
-		std::cerr << "Other error: " << e.what() << '\n';
-		logging::logerror("FILELOADER::FileSettings::SetMergeFolder Error: \n%s", e.what());
+		logging::logerror("FILELOADER::FileSettings::SetMergeFolder Error: %s", e.what());
 		return;
 	}
 	m_mergefolder = folder;

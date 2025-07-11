@@ -73,6 +73,19 @@ static void s_LoadAllProjects() {
 		const std::string strpath(u8path.begin(), u8path.end());
 		s_LoadProject(strpath);
 	}
+	if (projects.size() > 0) {
+		current_project->Save();
+		selected_project = 0;
+		current_project = &projects[0];
+		//current_project->Load(name);
+		current_project->SelectFile(current_project->GetSelectedFile());
+		current_project->loadedFile.Unload();
+		current_project->loadedFile.LoadFile(current_project->GetSelectedFile());
+		fs::path tmpPath = fs::path(current_project->GetSelectedFile());
+		const std::string tmpstr = tmpPath.filename().string();
+		const std::string projectName = current_project->GetName();
+		current_project->loadedFile.LoadSettings("projects/" + projectName + "/" + tmpstr + ".ini");
+	}
 }
 
 // Struct to store all window related settings
@@ -639,6 +652,15 @@ namespace ui {
 					selected_project = x;
 					current_project = &projects[x];
 					//current_project->Load(name);
+					if (!current_project->loadedFile.IsReady()) {
+						current_project->SelectFile(current_project->GetSelectedFile());
+						current_project->loadedFile.Unload();
+						current_project->loadedFile.LoadFile(current_project->GetSelectedFile());
+						fs::path tmpPath = fs::path(current_project->GetSelectedFile());
+						const std::string tmpstr = tmpPath.filename().string();
+						const std::string projectName = current_project->GetName();
+						current_project->loadedFile.LoadSettings("projects/" + projectName + "/" + tmpstr + ".ini");
+					}
 					s_hiddenHeaders.clear();
 				}
 				if (selected)
@@ -681,6 +703,7 @@ namespace ui {
 					const std::string projectName = current_project->GetName();
 					current_project->loadedFile.LoadSettings("projects/" + projectName + "/" + tmpstr + ".ini");
 					s_hiddenHeaders.clear();
+					s_ignoreCache = false;
 				}
 				if (selected)
 					ImGui::SetItemDefaultFocus();
