@@ -521,7 +521,7 @@ void FileInfo::SaveSettings(const std::string& path){
 	file << "m_mergeif = " << mergeif.first << " := " << mergeif.second << '\n';
 }
 
-void SplitWorksheets(const std::string& filename, const std::string& outdir){
+void SplitWorksheets(const std::string& filename, const std::string& outdir, const int startindex){
 	if (!StrEndswith(filename, ".xlsx"))
 		return;
 	try {
@@ -529,7 +529,10 @@ void SplitWorksheets(const std::string& filename, const std::string& outdir){
 		xlnt::workbook wb;
 		wb.load(path.wstring());
 
-		int sheet_index = 0;
+		logging::loginfo("FILELOADER::SplitWorksheets Splitting Worksheet: %s", filename.c_str());
+		logging::loginfo("FILELOADER::SplitWorksheets Output Directory: %s", outdir.c_str());
+
+		int sheet_index = startindex;
 		for (const auto& sheet_name : wb.sheet_titles()) {
 			xlnt::worksheet ws = wb.sheet_by_title(sheet_name);
 

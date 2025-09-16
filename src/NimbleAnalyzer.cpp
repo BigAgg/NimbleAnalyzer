@@ -527,6 +527,22 @@ namespace ui {
 				}
 			}
 			ImGui::SetItemTooltip("Konvertiert alle Tabellen zu einzelnen xlsx Dateien");
+			if (ImGui::Button("Split All Worksheets in folder")) {
+				const std::string path = OpenDirectoryDialog();
+				const std::string outpath = OpenDirectoryDialog() + "/";
+				logging::loginfo("Outpath: %s", outpath.c_str());
+				if (path != "" && outpath != "") {
+					for (const auto& dirEntry : fs::directory_iterator(path)) {
+						std::string filepath = dirEntry.path().string();
+						ReplaceAllSubstrings(filepath, "\\", "/");
+						if (!StrEndswith(filepath, ".xlsx"))
+							continue;
+						size_t count = std::distance(fs::directory_iterator(outpath), fs::directory_iterator{});
+						SplitWorksheets(filepath, outpath, count);
+					}
+				}
+			}
+			ImGui::SetItemTooltip("Splittet alle Tabellen in gewählten Ordner in einzelne Tabellen\nund speichert sie in gewähltem Ausgabeordner");
 			if (ImGui::Button("Edit Worksheet")) {
 				const std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
 				if (filename != "") {
