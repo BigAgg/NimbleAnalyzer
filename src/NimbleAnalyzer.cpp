@@ -1432,6 +1432,30 @@ namespace ui {
 		ImGui::BeginChild("dataview", {(DEFAULT_INPUT_WIDTH + 10.0f) * (headers.size() - s_hiddenHeaders.size()) + 50.0f, screenH - 155.0f}, 0, flags_nomenu);
 		// Now drawing the filtered data if there is any
 		if (s_filteredData.size() == 0 && s_filter == "") {
+			ImGuiListClipper clipper;
+			clipper.Begin(data.size());
+			while (clipper.Step()) {
+				for (int x = clipper.DisplayStart; x < clipper.DisplayEnd; ++x) {
+					RowInfo& row = data[x];
+
+					ImGui::SetNextItemWidth(6.0f);
+					if (ImGui::Button((" X ##" + std::to_string(x)).c_str())) {
+						current_project->loadedFile.RemoveData(x);
+					}
+					ImGui::SetItemTooltip((char*)u8"Löscht diesen kompletten Eintrag!");
+
+					if (StrContains(s_viewmode, "horizontal"))
+						ImGui::SameLine();
+
+					DisplayData(row, x, s_viewmode, s_hiddenHeaders);
+
+					if (row.Changed()) {
+						current_project->loadedFile.SetRowData(row, x);
+					}
+				}
+			}
+			clipper.End();  // Optional: usually not required, but explicit is good
+			/*
 			int x = 0;
 			for (RowInfo& row : data) {
 				ImGui::SetNextItemWidth(6.0f);
@@ -1445,10 +1469,37 @@ namespace ui {
 				if (row.Changed())
 					current_project->loadedFile.SetRowData(row, x);
 				x++;
-			}
+			}*/
 		}
 		// If no filtered, simply draw the whole dataset available
 		else {
+			ImGuiListClipper clipper;
+			clipper.Begin(s_filteredData.size());
+
+			while (clipper.Step()) {
+				for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+					auto it = std::next(s_filteredData.begin(), i);
+					int id = it->first;
+					RowInfo& row = it->second;
+
+					ImGui::SetNextItemWidth(6.0f);
+					if (ImGui::Button((" X ##" + std::to_string(id)).c_str())) {
+						current_project->loadedFile.RemoveData(id);
+					}
+					ImGui::SetItemTooltip((char*)u8"Löscht diesen kompletten Eintrag!");
+
+					if (StrContains(s_viewmode, "horizontal"))
+						ImGui::SameLine();
+
+					DisplayData(row, id, s_viewmode, s_hiddenHeaders);
+
+					if (row.Changed()) {
+						current_project->loadedFile.SetRowData(row, id);
+					}
+				}
+			}
+			clipper.End();  // Optional: usually not required, but explicit is good
+			/*
 			for (std::pair<int, RowInfo> pair : s_filteredData) {
 				ImGui::SetNextItemWidth(6.0f);
 				if (ImGui::Button((" X ##" + std::to_string(pair.first)).c_str())) {
@@ -1461,7 +1512,7 @@ namespace ui {
 				if (pair.second.Changed()) {
 					current_project->loadedFile.SetRowData(pair.second, pair.first);
 				}
-			}
+			}*/
 		}
 		ImGui::EndChild();
 		ImGui::End();
