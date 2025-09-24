@@ -46,6 +46,7 @@ static Project new_project;
 static Project *current_project = &new_project;
 static int selected_project = -1;
 static std::vector<Project> projects;
+static std::vector<std::string> exportstrings;
 
 static void s_LoadProject(const std::string& name) {
 	std::string projectName = Splitlines(name, "\\").second;	// Get the project name
@@ -515,6 +516,7 @@ namespace ui {
 		}
 		*/
 		if (ImGui::BeginMenu("Dateieditor")) {
+			ImGui::SeparatorText("Filesplitter");
 			if (ImGui::Button("Split Worksheets")) {
 				const std::string filename = OpenFileDialog("Excel Sheet", "xlsx");
 				if (filename != "") {
@@ -530,7 +532,6 @@ namespace ui {
 			if (ImGui::Button("Split All Worksheets in folder")) {
 				const std::string path = OpenDirectoryDialog();
 				const std::string outpath = OpenDirectoryDialog() + "/";
-				logging::loginfo("Outpath: %s", outpath.c_str());
 				if (path != "" && outpath != "") {
 					for (const auto& dirEntry : fs::directory_iterator(path)) {
 						std::string filepath = dirEntry.path().string();
@@ -542,7 +543,44 @@ namespace ui {
 					}
 				}
 			}
-			ImGui::SetItemTooltip("Splittet alle Tabellen in gewählten Ordner in einzelne Tabellen\nund speichert sie in gewähltem Ausgabeordner");
+			ImGui::SetItemTooltip((char*)u8"Splittet alle Tabellen in gewählten Ordner in einzelne Tabellen\nund speichert sie in gewähltem Ausgabeordner");
+			ImGui::SeparatorText("Table Exporter");
+			if (ImGui::Button("Add Export string")) {
+				exportstrings.push_back("");
+			}
+			int x = 0;
+			for (auto& exportstring : exportstrings) {
+				ImGui::PushID(&exportstring);
+				ImGui::InputString(exportstring, "## exportstring");
+				ImGui::SameLine();
+				if (ImGui::Button("X")) {
+					exportstrings.erase(exportstrings.begin() + x);
+				}
+				ImGui::PopID();
+				x++;
+			}
+			if (exportstrings.size() > 0 && ImGui::Button("Tabelle(n) exportieren")) {
+				const std::string file = OpenFileDialog("Excel sheets", "xlsx,XLSX");
+				const std::string outpath = OpenDirectoryDialog() + "/";
+				if (file != "") {
+					ExportWorksheets(file, exportstrings, outpath);
+				}
+			}
+			if (exportstrings.size() > 0 && ImGui::Button("Export All Worksheets in folder")) {
+				const std::string path = OpenDirectoryDialog();
+				const std::string outpath = OpenDirectoryDialog() + "/";
+				if (path != "" && outpath != "") {
+					for (const auto& dirEntry : fs::directory_iterator(path)) {
+						std::string filepath = dirEntry.path().string();
+						ReplaceAllSubstrings(filepath, "\\", "/");
+						if (!StrEndswith(filepath, ".xlsx"))
+							continue;
+						size_t count = std::distance(fs::directory_iterator(outpath), fs::directory_iterator{});
+						ExportWorksheets(filepath, exportstrings, outpath, count);
+					}
+				}
+			}
+			ImGui::SeparatorText("File Editor");
 			if (ImGui::Button("Edit Worksheet")) {
 				const std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
 				if (filename != "") {
@@ -741,25 +779,28 @@ namespace ui {
 		ImGui::SameLine();
 		// Saving options for selected file
 		if(rlImGuiImageButtonSize("Datei speichern als", &save_as_icon, {30.0f, 30.0f})) {
-			const std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
-			if (filename != "") {
-				if (StrContains(filename, ".csv"))
-					current_project->loadedFile.SaveFile(filename);
-				else
-					current_project->loadedFile.SaveFileAs(current_project->loadedFile.GetFilename(), filename);
-
+			if (current_project->loadedFile.IsReady()) {
+				const std::string filename = OpenFileDialog("Excel Sheet", "xlsx,csv");
+				if (filename != "") {
+					if (StrContains(filename, ".csv"))
+						current_project->loadedFile.SaveFile(filename);
+					else
+						current_project->loadedFile.SaveFileAs(current_project->loadedFile.GetFilename(), filename);
+				}
 			}
 		}
 		ImGui::SetItemTooltip("Datei speichern als");
 		ImGui::SameLine();
 		if (rlImGuiImageButtonSize("Datei speichern", &save_icon, { 30.0f, 30.0f })) {
-			const std::string filename = current_project->loadedFile.GetFilename();
-			BackupFile(filename);
-			current_project->loadedFile.SaveFileAs(filename, filename);
+			if (current_project->loadedFile.IsReady()) {
+				const std::string filename = current_project->loadedFile.GetFilename();
+				BackupFile(filename);
+				current_project->loadedFile.SaveFileAs(filename, filename);
+			}
 		}
 		ImGui::SetItemTooltip((char*)u8"Datei speichern (Überschreibt geladene Datei)");
 		ImGui::SameLine();
-		if (ImGui::Button("Daten Mergen")) {
+		if (ImGui::Button("Daten Mergen") && current_project->loadedFile.IsReady()) {
 			current_project->loadedFile.Settings->MergeFiles();
 			s_ignoreCache = false;
 		}

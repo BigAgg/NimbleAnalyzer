@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(NimbleAnalyzer)
 # Project Version 
-set(PROJECT_VERSION "0.2.0")
+set(PROJECT_VERSION "0.2.2")
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)

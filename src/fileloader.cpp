@@ -551,7 +551,49 @@ void SplitWorksheets(const std::string& filename, const std::string& outdir, con
 			std::string output_filename = outdir + "sheet_" + std::to_string(sheet_index) + "_" + sheet_name + ".xlsx";
 			fs::path out_path = fs::u8path(output_filename);
 			new_wb.save(out_path);
-			logging::loginfo("FILELOADER::SplitWorksheets Saved splitfile: \n%s", output_filename.c_str());
+			logging::loginfo("FILELOADER::SplitWorksheets Saved splitfile: %s", output_filename.c_str());
+
+			++sheet_index;
+		}
+	}
+	catch(std::exception & e) {
+		logging::logerror("%s", e.what());
+	}
+}
+
+void ExportWorksheets(const std::string& filename, const std::vector<std::string> sheetnames, const std::string& outdir, const int startindex){
+	if (!StrEndswith(filename, ".xlsx"))
+		return;
+	try {
+		fs::path path = fs::u8path(filename);
+		xlnt::workbook wb;
+		wb.load(path.wstring());
+
+		logging::loginfo("FILELOADER::ExportWorksheets Splitting Worksheet: %s", filename.c_str());
+		logging::loginfo("FILELOADER::ExportWorksheets Output Directory: %s", outdir.c_str());
+
+		int sheet_index = startindex;
+		for (const auto& sheet_name : wb.sheet_titles()) {
+			if (std::find(sheetnames.begin(), sheetnames.end(), sheet_name) == sheetnames.end())
+				continue;
+			xlnt::worksheet ws = wb.sheet_by_title(sheet_name);
+
+			// Create a new workbook and add the current sheet to it
+			xlnt::workbook new_wb;
+			xlnt::worksheet new_ws = new_wb.active_sheet();
+			new_ws.title(sheet_name);
+
+			// Copy contents cell by cell
+			for (auto row : ws.rows(false)) {
+				for (auto cell : row) {
+					new_ws.cell(cell.reference()).value(cell.to_string());
+				}
+			}
+			// Save to file with dynamic name
+			std::string output_filename = outdir + "sheet_" + std::to_string(sheet_index) + "_" + sheet_name + ".xlsx";
+			fs::path out_path = fs::u8path(output_filename);
+			new_wb.save(out_path);
+			logging::loginfo("FILELOADER::SplitWorksheets Saved splitfile: %s", output_filename.c_str());
 
 			++sheet_index;
 		}

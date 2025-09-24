@@ -30,6 +30,7 @@ SOFTWARE.
 #include <unordered_set>
 // Splits all worksheets into separate .xlsx files
 void SplitWorksheets(const std::string& filename, const std::string& outdir = "sheets/", const int startindex = 0);
+void ExportWorksheets(const std::string& filename, const std::vector<std::string> sheetnames, const std::string& outdir = "sheets/", const int startindex = 0);
 void EditWorksheet(const std::string& filename, int DATA_row = 0, bool deleteEmptyRows = true);
 void BackupFile(const std::string& filename);
 void EnableTimings();
