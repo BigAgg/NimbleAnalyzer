@@ -1,6 +1,3 @@
-[submodule "external/xlnt"]
-	path = external/xlnt
-	url = https://github.com/tfussell/xlnt
 [submodule "external/raylib"]
 	path = external/raylib
 	url = https://github.com/raysan5/raylib
@@ -13,3 +10,6 @@
 [submodule "external/nfd"]
 	path = external/nfd
 	url = https://github.com/btzy/nativefiledialog-extended
+[submodule "external/xlnt"]
+	path = external/xlnt
+	url = https://github.com/xlnt-community/xlnt
