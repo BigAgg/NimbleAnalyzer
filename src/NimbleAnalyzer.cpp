@@ -116,7 +116,6 @@ namespace engine {
 		fs::create_directory("fonts");
 		fs::create_directory("projects");
 		fs::create_directory("sheets");
-		fs::create_directory("backup");
 		// Loading engine settings
 		if (!LoadSettings()) {
 			logging::logwarning("ENGINE::INIT Could not load settings, using default settings instead!");

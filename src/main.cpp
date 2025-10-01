@@ -17,8 +17,13 @@ int main(int argc, char *argv[]) {
     logging::logerror("MAIN Programm crashed: %s", e.what());
     error = true;
   }
-	ui::Shutdown();
-	engine::Shutdown();
+  try {
+		ui::Shutdown();
+		engine::Shutdown();
+  }
+  catch (std::exception& e) {
+    logging::logwarning(e.what());
+  }
 #ifdef NDEBUG
   logging::stoplogging();
 #endif
