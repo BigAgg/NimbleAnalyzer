@@ -2,7 +2,7 @@
 **Nimble Analyzer** is a tool to read and process excel filedata (xlsx).
 
 ## Technical
-It is written in C++ using [Raylib](https://www.raylib.com/), [ImGui](https://github.com/ocornut/imgui), [rlImGui](https://github.com/raylib-extras/rlImGui), [xlnt](https://github.com/tfussell/xlnt) and [nfd](https://github.com/btzy/nativefiledialog-extended).
+It is written in C++ using [Raylib](https://www.raylib.com/), [ImGui](https://github.com/ocornut/imgui), [rlImGui](https://github.com/raylib-extras/rlImGui), [xlnt](https://github.com/xlnt-community/xlnt) and [nfd](https://github.com/btzy/nativefiledialog-extended).
 
 ## Cloning the repo:
 ```sh
@@ -40,7 +40,7 @@ The executable can now be found inside the entered *build* directory
 [Raylib](https://www.raylib.com/)\
 [ImGui](https://github.com/ocornut/imgui)\
 [rlImGui](https://github.com/raylib-extras/rlImGui)\
-[xlnt](https://github.com/tfussell/xlnt)\
+[xlnt](https://github.com/xlnt-community/xlnt)\
 [nfd](https://github.com/btzy/nativefiledialog-extended)
 
 ## License

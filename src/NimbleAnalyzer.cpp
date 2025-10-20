@@ -154,6 +154,7 @@ namespace engine {
 		SetWindowMonitor(engineSettings.device);
 		SetWindowPosition(engineSettings.windowPosX, engineSettings.windowPosY);
 		SetExitKey(0);
+		logging::loginfo("%s", windowName.c_str());
 		return true;
 	}
 
@@ -496,24 +497,6 @@ namespace ui {
 		if (ImGui::Button((char*)u8"Datenübersicht")) {
 			uiSettings.ui_mode = UI_DATA_VIEW_WINDOW;
 		}
-		// Error output
-		/*
-		* Deprecated, no longer needed as crash window is now active
-		if (ImGui::Button("Errors in txt")) {
-			std::ofstream file("errors.txt");
-			if (file) {
-				for (auto& error : logging::GetErrors()) {
-					file << error << "\n";
-				}
-			}
-			std::ofstream _file("warnings.txt");
-			if (_file) {
-				for (auto& warning : logging::GetWarnings()) {
-					_file << warning << "\n";
-				}
-			}
-		}
-		*/
 		if (ImGui::BeginMenu("Dateieditor")) {
 			ImGui::SeparatorText("Filesplitter");
 			if (ImGui::Button("Split Worksheets")) {
@@ -633,6 +616,10 @@ namespace ui {
 				ImGui::StyleColorsLight();
 				uiSettings.ui_style = 0;
 			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Restore Backup")) {
+			// TODO: Restore backup files
 			ImGui::EndMenu();
 		}
 		if (ImGui::Button("Update")) {

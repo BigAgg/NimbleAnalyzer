@@ -448,7 +448,18 @@ void FileInfo::LoadSettings(const std::string& path){
 			Settings->SetMergeFile(mergefile);
 		}
 		else if (header == "m_mergefolderfile" && value != "") {
-			Settings->SetMergeFolderTemplate(value);
+			//Settings->SetMergeFolderTemplate(value);
+			fs::path templatePath = fs::u8path(value);
+			logging::loginfo("template: %s", templatePath.string().c_str());
+			fs::path rawPath = fixedpath.parent_path().string() + "/" + templatePath.filename().string();
+			logging::loginfo("rawPath: %s", rawPath.string().c_str());
+			try {
+				fs::copy_file(templatePath, rawPath, fs::copy_options::update_existing);
+			}
+			catch (std::exception e) {
+				logging::logwarning("FILELOADER::FileInfo::LoadSettings Could not copy file: %s", e.what());
+			}
+			Settings->SetMergeFolderTemplate(rawPath.string());
 		}
 		else if (header == "m_dontimportifexistsheader") {
 			Settings->SetDontImportIf(value);
