@@ -449,17 +449,21 @@ void FileInfo::LoadSettings(const std::string& path){
 		}
 		else if (header == "m_mergefolderfile" && value != "") {
 			//Settings->SetMergeFolderTemplate(value);
-			fs::path templatePath = fs::u8path(value);
-			logging::loginfo("template: %s", templatePath.string().c_str());
+			fs::path templatePath = fs::path(value);
 			fs::path rawPath = fixedpath.parent_path().string() + "/" + templatePath.filename().string();
-			logging::loginfo("rawPath: %s", rawPath.string().c_str());
 			try {
-				fs::copy_file(templatePath, rawPath, fs::copy_options::update_existing);
+				fs::copy_file(fs::u8path(value), fs::u8path(rawPath.string()), fs::copy_options::update_existing);
 			}
 			catch (std::exception e) {
-				logging::logwarning("FILELOADER::FileInfo::LoadSettings Could not copy file: %s", e.what());
+				if(!StrContains(e.what(), "another process."))
+					logging::logwarning("FILELOADER::FileInfo::LoadSettings Could not copy file: %s", e.what());
 			}
-			Settings->SetMergeFolderTemplate(rawPath.string());
+			try {
+				Settings->SetMergeFolderTemplate(rawPath.string());
+			}
+			catch (std::exception e) {
+				logging::logwarning("FILELOADER::FileInfo::LoadSettings Could not set mergefoldertemplate: %s", e.what());
+			}
 		}
 		else if (header == "m_dontimportifexistsheader") {
 			Settings->SetDontImportIf(value);
