@@ -533,7 +533,7 @@ namespace ui {
 			int x = 0;
 			for (auto& exportstring : exportstrings) {
 				ImGui::PushID(&exportstring);
-				ImGui::InputString(exportstring, "## exportstring");
+				ImGui::InputStringWithHint(exportstring, "## exportstring", "Tabellenname");
 				ImGui::SameLine();
 				if (ImGui::Button("X")) {
 					exportstrings.erase(exportstrings.begin() + x);
