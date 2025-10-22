@@ -806,6 +806,7 @@ namespace ui {
 		ImGui::SameLine();
 		ImGui::Text("Aktueller Merge-Ordner: %s", mergefolderpath.string().c_str());
 		if (current_project->loadedFile.Settings->IsMergeFolderSet()) {
+			//TODO: add button to open and edit template file
 			if (rlImGuiImageButtonSize((char*)u8"Wähle template", &file_icon, {30.0f, 30.0f})) {
 				std::string templatefile = OpenFileDialog("Excel Sheet", "xlsx,csv");
 				if (templatefile != "") {

@@ -67,7 +67,13 @@ std::vector<std::vector<std::string>> s_LoadCSVSheet(const std::string& filename
 	Timer t;
 	t.Start();
 	std::vector<std::vector<std::string>> sheetData;
-	fs::path path = fs::u8path(filename);
+	fs::path path;
+	try {
+		path = fs::u8path(filename);
+	}
+	catch (const std::exception& e) {
+		path = filename;
+	}
 
 	if (!fs::exists(path)) {
 		logging::logwarning("FILELOADER::s_LoadCSVSheet File does not exist: %s", filename.c_str());
@@ -148,7 +154,13 @@ static std::vector<std::vector<std::string>> s_LoadExcelSheet(const std::string&
 	t.Start();
 	std::vector<std::vector<std::string>> sheetData;
 	// Converting filename to a path
-	fs::path path = fs::u8path(filename);
+	fs::path path;
+	try {
+		path = fs::u8path(filename);
+	}
+	catch(const std::exception &e){
+		path = filename;
+	}
 	const std::string extension = path.filename().extension().string();
 	// Check if the file is a csv and call its load function instead
 	if (extension == ".csv" || extension == ".CSV") {
@@ -450,16 +462,18 @@ void FileInfo::LoadSettings(const std::string& path){
 		else if (header == "m_mergefolderfile" && value != "") {
 			//Settings->SetMergeFolderTemplate(value);
 			fs::path templatePath = fs::path(value);
-			fs::path rawPath = fixedpath.parent_path().string() + "/" + templatePath.filename().string();
+			fs::path filename = fs::u8path(templatePath.filename().string());
+			fs::path rawPath = fixedpath.parent_path().string() + "/" + filename.string();
 			try {
-				fs::copy_file(fs::u8path(value), fs::u8path(rawPath.string()), fs::copy_options::update_existing);
+				fs::copy_file(fs::u8path(value), rawPath, fs::copy_options::update_existing);
 			}
 			catch (std::exception e) {
 				if(!StrContains(e.what(), "another process."))
 					logging::logwarning("FILELOADER::FileInfo::LoadSettings Could not copy file: %s", e.what());
 			}
 			try {
-				Settings->SetMergeFolderTemplate(rawPath.string());
+				fs::path unfixedpath = path;
+				Settings->SetMergeFolderTemplate(unfixedpath.parent_path().string() + "/" + templatePath.filename().string());
 			}
 			catch (std::exception e) {
 				logging::logwarning("FILELOADER::FileInfo::LoadSettings Could not set mergefoldertemplate: %s", e.what());
