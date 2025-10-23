@@ -31,6 +31,8 @@ SOFTWARE.
 #include <fstream>
 #include <vector>
 #include <chrono>
+#include <iomanip>
+#include <ctime>
 #include <thread>
 
 #include "logging.h"
@@ -619,7 +621,60 @@ namespace ui {
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("Restore Backup")) {
-			// TODO: Restore backup files
+			if (current_project->loadedFile.IsReady()) {
+				const std::string filepath = fs::u8path(current_project->loadedFile.GetFilename()).parent_path().string() + "/backup/";
+				if (fs::exists(filepath)) {
+					ImGui::Text(filepath.data());
+					const std::string filename = fs::u8path(current_project->loadedFile.GetFilename()).filename().string();
+					try {
+						for (const auto& entry : fs::directory_iterator(filepath)) {
+							if (fs::is_regular_file(entry.status())) {
+								// Get the file path and name
+								const std::string backupFilename = entry.path().filename().string();
+								if (!StrStartswith(backupFilename, filename))
+									continue;
+								// Get last write time
+								auto ftime = fs::last_write_time(entry);
+								// Convert to system clock time
+								auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+									ftime - fs::file_time_type::clock::now() + std::chrono::system_clock::now()
+								);
+
+								std::time_t cftime = std::chrono::system_clock::to_time_t(sctp);
+								std::ostringstream oss;
+								oss << std::put_time(std::localtime(&cftime), "%d-%m-%Y %H:%M:%S");
+								const std::string writeTimeStr = oss.str();
+								// Filesize
+								auto filesize = fs::file_size(entry);
+								const std::string buttonStr = backupFilename + "\n"
+									+ (char*)u8"Änderungsdatum: " + writeTimeStr +
+									(char*)u8" Dateigröße: " + std::to_string(filesize) + " Bytes";
+								ImGui::PushID(&buttonStr);
+								if (ImGui::Button(buttonStr.data())) {
+									const std::string originalPath = fs::u8path(current_project->loadedFile.GetFilename()).parent_path().string() + "/";
+									fs::copy_file(filepath + backupFilename, originalPath + filename, fs::copy_options::overwrite_existing);
+									const std::string file = current_project->GetSelectedFile();
+									current_project->SelectFile(file);
+									current_project->loadedFile.Unload();
+									current_project->loadedFile.LoadFile(file);
+									fs::path tmpPath = fs::path(file);
+									const std::string tmpstr = tmpPath.filename().string();
+									const std::string projectName = current_project->GetName();
+									current_project->loadedFile.LoadSettings("projects/" + projectName + "/" + tmpstr + ".ini");
+								}
+								ImGui::PopID();
+							}
+						}
+					}
+					catch (const std::exception& e) {
+						logging::logerror("NimbleAnalyzer::Restore_Backup: %s", e.what());
+					}
+				}
+				else {
+					ImGui::Text((char*)u8"Aktuell existieren keine Backups für die ausgewählte Datei.");
+				}
+
+			}
 			ImGui::EndMenu();
 		}
 		if (ImGui::Button("Update")) {
@@ -806,7 +861,6 @@ namespace ui {
 		ImGui::SameLine();
 		ImGui::Text("Aktueller Merge-Ordner: %s", mergefolderpath.string().c_str());
 		if (current_project->loadedFile.Settings->IsMergeFolderSet()) {
-			//TODO: add button to open and edit template file
 			if (rlImGuiImageButtonSize((char*)u8"Wähle template", &file_icon, {30.0f, 30.0f})) {
 				std::string templatefile = OpenFileDialog("Excel Sheet", "xlsx,csv");
 				if (templatefile != "") {
@@ -814,6 +868,16 @@ namespace ui {
 				}
 			}
 			ImGui::SetItemTooltip((char*)u8"Wähle Template");
+			if (current_project->loadedFile.Settings->GetMergeFolderTemplate().IsReady()) {
+				ImGui::SameLine();
+				if (ImGui::Button("Template bearbeiten")) {
+					std::string templatepath = fs::u8path(current_project->loadedFile.Settings->GetMergeFolderTemplate().GetFilename()).string();
+					std::string command = "start \"\" \"" + templatepath + "\"";
+					logging::loginfo("To execute: %s", templatepath.c_str());
+					system(command.c_str());
+				}
+				ImGui::SetItemTooltip((char*)u8"Template Datei zum bearbeiten öffnen.\nNach dem bearbeiten wird empfohlen das Projekt\nneu zu laden!");
+			}
 			ImGui::SameLine();
 			if (ImGui::Checkbox("Cache ignorieren", &s_ignoreCache)) {
 				current_project->loadedFile.Settings->SetMergeFolder(current_project->loadedFile.Settings->GetMergeFolder(), s_ignoreCache);
