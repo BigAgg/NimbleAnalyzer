@@ -1180,6 +1180,160 @@ namespace ui {
 		ImGui::End();
 	}
 
+	void FilterData() {
+		std::vector<RowInfo>&& data = current_project->loadedFile.GetData();
+		s_filteredData.clear();
+		// Filter for searchbar
+		if (s_filter != "") {
+			const std::vector<std::string> headernames = current_project->loadedFile.GetHeaderNames();
+			for (int x = 0; x < data.size(); x++) {
+				RowInfo& row = data[x];
+				bool hasFilter = false;
+				for (const std::string& header : headernames) {
+					const std::string value = row.GetData(header);
+					if (StrContains(value, s_filter)) {
+						hasFilter = true;
+						break;
+					}
+				}
+				if (hasFilter) {
+					s_filteredData.push_back(std::make_pair(x, row));
+				}
+			}
+		}
+		// Filter by mathematic modes
+		switch (s_filtermode) {
+		case FILTER_MIN:
+			float value_min;
+			s_filteredData.clear();
+			for (int x = 0; x < data.size(); x++) {
+				RowInfo& rinfo = data[x];
+				std::string value = rinfo.GetData(filterSettings.header);
+				if (value == "")
+					continue;
+				if (!IsNumber(value) && !IsInteger(value))
+					continue;
+				ReplaceAllSubstrings(value, ",", ".");
+				float value_number = std::stof(value);
+				if (x == 0) {
+					value_min = value_number;
+					s_filteredData.push_back(std::make_pair(x, rinfo));
+					continue;
+				}
+				if (value_min > value_number) {
+					s_filteredData.clear();
+					value_min = value_number;
+					s_filteredData.push_back(std::make_pair(x, rinfo));
+				}
+				else if (value_min == value_number) {
+					s_filteredData.push_back(std::make_pair(x, rinfo));
+				}
+			}
+			break;
+		case FILTER_MAX:
+			float value_max;
+			for (int x = 0; x < data.size(); x++) {
+				RowInfo& rinfo = data[x];
+				std::string value = rinfo.GetData(filterSettings.header);
+				if (value == "")
+					continue;
+				if (!IsNumber(value) && !IsInteger(value))
+					continue;
+				ReplaceAllSubstrings(value, ",", ".");
+				float value_number = std::stof(value);
+				if (x == 0) {
+					value_max = value_number;
+					s_filteredData.push_back(std::make_pair(x, rinfo));
+					continue;
+				}
+				if (value_max < value_number) {
+					s_filteredData.clear();
+					value_max = value_number;
+					s_filteredData.push_back(std::make_pair(x, rinfo));
+				}
+				else if (value_max == value_number) {
+					s_filteredData.push_back(std::make_pair(x, rinfo));
+				}
+			}
+			break;
+		case FILTER_GREATER_THAN:
+			for (int x = 0; x < data.size(); x++) {
+				RowInfo& rinfo = data[x];
+				std::string value = rinfo.GetData(filterSettings.header);
+				if (value == "")
+					continue;
+				else if (!IsNumber(value) && !IsInteger(value))
+					continue;
+				ReplaceAllSubstrings(value, ",", ".");
+				float value_number = std::stof(value);
+				if (value_number > filterSettings.max)
+					s_filteredData.push_back(std::make_pair(x, rinfo));
+			}
+			break;
+		case FILTER_LOWER_THAN:
+			for (int x = 0; x < data.size(); x++) {
+				RowInfo& rinfo = data[x];
+				std::string value = rinfo.GetData(filterSettings.header);
+				if (value == "")
+					continue;
+				else if (!IsNumber(value) && !IsInteger(value))
+					continue;
+				ReplaceAllSubstrings(value, ",", ".");
+				float value_number = std::stof(value);
+				if (value_number < filterSettings.min)
+					s_filteredData.push_back(std::make_pair(x, rinfo));
+			}
+			break;
+		case FILTER_OUT_OF_RANGE:
+			for (int x = 0; x < data.size(); x++) {
+				RowInfo& rinfo = data[x];
+				std::string value = rinfo.GetData(filterSettings.header);
+				if (value == "")
+					continue;
+				else if (!IsNumber(value) && !IsInteger(value))
+					continue;
+				ReplaceAllSubstrings(value, ",", ".");
+				float value_number = std::stof(value);
+				if (value_number < filterSettings.min || value_number > filterSettings.max)
+					s_filteredData.push_back(std::make_pair(x, rinfo));
+			}
+			break;
+		case FILTER_IN_RANGE:
+			for (int x = 0; x < data.size(); x++) {
+				RowInfo& rinfo = data[x];
+				std::string value = rinfo.GetData(filterSettings.header);
+				if (value == "")
+					continue;
+				else if (!IsNumber(value) && !IsInteger(value))
+					continue;
+				ReplaceAllSubstrings(value, ",", ".");
+				float value_number = std::stof(value);
+				if (value_number > filterSettings.min && value_number < filterSettings.max)
+					s_filteredData.push_back(std::make_pair(x, rinfo));
+			}
+			break;
+		case FILTER_EMPTY:
+			for (int x = 0; x < data.size(); x++) {
+				RowInfo& rinfo = data[x];
+				const std::string value = rinfo.GetData(filterSettings.header);
+				if (value == "")
+					s_filteredData.push_back(std::make_pair(x, rinfo));
+			}
+			break;
+		case FILTER_NOT_EMPTY:
+			for (int x = 0; x < data.size(); x++) {
+				RowInfo& rinfo = data[x];
+				const std::string value = rinfo.GetData(filterSettings.header);
+				if (value != "")
+					s_filteredData.push_back(std::make_pair(x, rinfo));
+			}
+			break;
+		case FILTER_NONE:
+		default:
+			break;
+		}
+	}
+
 	void DataViewWindow() {
 		if (!current_project->loadedFile.IsReady()) {
 			uiSettings.ui_mode = UI_DEFAULT;
@@ -1254,23 +1408,7 @@ namespace ui {
 			}
 			// Search for filter
 			if (ImGui::InputStringWithHint(s_filter, "Filter", "stichwort")) {
-				s_filteredData.clear();
-				// first = index inside data, second = actual RowInfo
-				const std::vector<std::string> headernames = current_project->loadedFile.GetHeaderNames();
-				for (int x = 0; x < data.size(); x++) {
-					RowInfo &row = data[x];
-					bool hasFilter = false;
-					for (const std::string& header : headernames) {
-						const std::string value = row.GetData(header);
-						if (StrContains(value, s_filter)) {
-							hasFilter = true;
-							break;
-						}
-					}
-					if (hasFilter) {
-						s_filteredData.push_back(std::make_pair(x, row));
-					}
-				}
+				FilterData();
 			}
 			// Mathematical filter options
 			ImGui::SeparatorText("Mathematische Filteroptionen");
@@ -1280,7 +1418,7 @@ namespace ui {
 					bool selected = (x == s_filtermode);
 					if (ImGui::Selectable(fl.c_str(), &selected)) {
 						s_filtermode = static_cast<FILTER_MODE>(x);
-						s_filteredData.clear();
+						FilterData();
 					}
 					if (selected)
 						ImGui::SetItemDefaultFocus();
@@ -1309,187 +1447,31 @@ namespace ui {
 			// Definetly needs a refactor i think but its working fine rn
 			switch (s_filtermode) {
 			case FILTER_MIN:
-				if (ImGui::Button("Filter anwenden")) {
-					float value_min;
-					s_filteredData.clear();
-					for (int x = 0; x < data.size(); x++) {
-						RowInfo& rinfo = data[x];
-						std::string value = rinfo.GetData(filterSettings.header);
-						if (value == "")
-							continue;
-						if (!IsNumber(value) && !IsInteger(value))
-							continue;
-						ReplaceAllSubstrings(value, ",", ".");
-						float value_number = std::stof(value);
-						if (x == 0) {
-							value_min = value_number;
-							s_filteredData.push_back(std::make_pair(x, rinfo));
-							continue;
-						}
-						if (value_min > value_number) {
-							s_filteredData.clear();
-							value_min = value_number;
-							s_filteredData.push_back(std::make_pair(x, rinfo));
-						}
-						else if (value_min == value_number) {
-							s_filteredData.push_back(std::make_pair(x, rinfo));
-						}
-					}
-				}
-				break;
 			case FILTER_MAX:
+			case FILTER_EMPTY:
+			case FILTER_NOT_EMPTY:
 				if (ImGui::Button("Filter anwenden")) {
-					float value_max;
-					s_filteredData.clear();
-					for (int x = 0; x < data.size(); x++) {
-						RowInfo& rinfo = data[x];
-						std::string value = rinfo.GetData(filterSettings.header);
-						if (value == "")
-							continue;
-						if (!IsNumber(value) && !IsInteger(value))
-							continue;
-						ReplaceAllSubstrings(value, ",", ".");
-						float value_number = std::stof(value);
-						if (x == 0) {
-							value_max = value_number;
-							s_filteredData.push_back(std::make_pair(x, rinfo));
-							continue;
-						}
-						if (value_max < value_number) {
-							s_filteredData.clear();
-							value_max = value_number;
-							s_filteredData.push_back(std::make_pair(x, rinfo));
-						}
-						else if (value_max == value_number) {
-							s_filteredData.push_back(std::make_pair(x, rinfo));
-						}
-					}
+					FilterData();
 				}
 				break;
 			case FILTER_GREATER_THAN:
 				if (ImGui::InputFloat("Max", &filterSettings.max)) {
-					s_filteredData.clear();
-					for (int x = 0; x < data.size(); x++) {
-						RowInfo &rinfo = data[x];
-						std::string value = rinfo.GetData(filterSettings.header);
-						if (value == "")
-							continue;
-						else if (!IsNumber(value) && !IsInteger(value))
-							continue;
-						ReplaceAllSubstrings(value, ",", ".");
-						float value_number = std::stof(value);
-						if (value_number > filterSettings.max)
-							s_filteredData.push_back(std::make_pair(x,rinfo));
-					}
+					FilterData();
 				}
 				break;
 			case FILTER_LOWER_THAN:
 				if (ImGui::InputFloat("Min", &filterSettings.min)) {
-					s_filteredData.clear();
-					for (int x = 0; x < data.size(); x++) {
-						RowInfo &rinfo = data[x];
-						std::string value = rinfo.GetData(filterSettings.header);
-						if (value == "")
-							continue;
-						else if (!IsNumber(value) && !IsInteger(value))
-							continue;
-						ReplaceAllSubstrings(value, ",", ".");
-						float value_number = std::stof(value);
-						if (value_number < filterSettings.min)
-							s_filteredData.push_back(std::make_pair(x,rinfo));
-					}
+					FilterData();
 				}
 				break;
 			case FILTER_OUT_OF_RANGE:
-				if (ImGui::InputFloat("Min", &filterSettings.min)) {
-					s_filteredData.clear();
-					for (int x = 0; x < data.size(); x++) {
-						RowInfo &rinfo = data[x];
-						std::string value = rinfo.GetData(filterSettings.header);
-						if (value == "")
-							continue;
-						else if (!IsNumber(value) && !IsInteger(value))
-							continue;
-						ReplaceAllSubstrings(value, ",", ".");
-						float value_number = std::stof(value);
-						if (value_number < filterSettings.min || value_number > filterSettings.max)
-							s_filteredData.push_back(std::make_pair(x,rinfo));
-					}
-				}
-				if (ImGui::InputFloat("Max", &filterSettings.max)) {
-					s_filteredData.clear();
-					for (int x = 0; x < data.size(); x++) {
-						RowInfo &rinfo = data[x];
-						std::string value = rinfo.GetData(filterSettings.header);
-						if (value == "")
-							continue;
-						else if (!IsNumber(value) && !IsInteger(value))
-							continue;
-						ReplaceAllSubstrings(value, ",", ".");
-						float value_number = std::stof(value);
-						if (value_number < filterSettings.min || value_number > filterSettings.max)
-							s_filteredData.push_back(std::make_pair(x,rinfo));
-					}
-				}
-				break;
 			case FILTER_IN_RANGE:
 				if (ImGui::InputFloat("Min", &filterSettings.min)) {
-					s_filteredData.clear();
-					for (int x = 0; x < data.size(); x++) {
-						RowInfo &rinfo = data[x];
-						std::string value = rinfo.GetData(filterSettings.header);
-						if (value == "")
-							continue;
-						else if (!IsNumber(value) && !IsInteger(value))
-							continue;
-						ReplaceAllSubstrings(value, ",", ".");
-						float value_number = std::stof(value);
-						if (value_number > filterSettings.min && value_number < filterSettings.max)
-							s_filteredData.push_back(std::make_pair(x,rinfo));
-					}
+					FilterData();
 				}
 				if (ImGui::InputFloat("Max", &filterSettings.max)) {
-					s_filteredData.clear();
-					for (int x = 0; x < data.size(); x++) {
-						RowInfo &rinfo = data[x];
-						std::string value = rinfo.GetData(filterSettings.header);
-						if (value == "")
-							continue;
-						else if (!IsNumber(value) && !IsInteger(value))
-							continue;
-						ReplaceAllSubstrings(value, ",", ".");
-						float value_number = std::stof(value);
-						if (value_number > filterSettings.min && value_number < filterSettings.max)
-							s_filteredData.push_back(std::make_pair(x,rinfo));
-					}
+					FilterData();
 				}
-				break;
-			case FILTER_EMPTY:
-				if (ImGui::Button("Filter Anwenden")) {
-					s_filteredData.clear();
-					for (int x = 0; x < data.size(); x++) {
-						RowInfo& rinfo = data[x];
-						const std::string value = rinfo.GetData(filterSettings.header);
-						if (value == "")
-							s_filteredData.push_back(std::make_pair(x, rinfo));
-					}
-				}
-				break;
-			case FILTER_NOT_EMPTY:
-				if (ImGui::Button("Filter Anwenden")) {
-					s_filteredData.clear();
-					for (int x = 0; x < data.size(); x++) {
-						RowInfo& rinfo = data[x];
-						const std::string value = rinfo.GetData(filterSettings.header);
-						if (value != "")
-							s_filteredData.push_back(std::make_pair(x, rinfo));
-					}
-				}
-				break;
-			case FILTER_NONE:
-			default:
-				if (s_filteredData.size() > 0 && s_filter == "")
-					s_filteredData.clear();
 				break;
 			}
 			ImGui::EndMenu();
@@ -1577,6 +1559,7 @@ namespace ui {
 					ImGui::SetNextItemWidth(6.0f);
 					if (ImGui::Button((" X ##" + std::to_string(id)).c_str())) {
 						current_project->loadedFile.RemoveData(id);
+						FilterData();
 					}
 					ImGui::SetItemTooltip((char*)u8"Löscht diesen kompletten Eintrag!");
 
