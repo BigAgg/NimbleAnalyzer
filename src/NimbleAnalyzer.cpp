@@ -1624,9 +1624,9 @@ namespace ui {
 			std::ofstream bat(batPath);
 			bat << "@echo off\n";
 			bat << "timeout /t 2 /nobreak >nul\n"; // wait for 2 seconds
-			bat << "copy /Y \"" << installerPath << "\" \"" << appPath << "\"\n";
+			//bat << "copy /Y \"" << installerPath << "\" \"" << appPath << "\"\n";
 			bat << "start \"\" \"" << appPath << "\"\n";
-			bat << "del \"%~f0\"\n"; // delete the script itself
+			bat << "exit";
 			bat.close();
 			system(("start " + batPath).c_str());
 			CloseWindow();
