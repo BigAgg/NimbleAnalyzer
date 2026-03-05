@@ -1529,21 +1529,6 @@ namespace ui {
 				}
 			}
 			clipper.End();  // Optional: usually not required, but explicit is good
-			/*
-			int x = 0;
-			for (RowInfo& row : data) {
-				ImGui::SetNextItemWidth(6.0f);
-				if (ImGui::Button((" X ##" + std::to_string(x)).c_str())) {
-					current_project->loadedFile.RemoveData(x);
-				}
-				ImGui::SetItemTooltip((char*)u8"Löscht diesen kompletten Eintrag!");
-				if(StrContains(s_viewmode, "horizontal"))
-					ImGui::SameLine();
-				DisplayData(data[x], x, s_viewmode, s_hiddenHeaders);
-				if (row.Changed())
-					current_project->loadedFile.SetRowData(row, x);
-				x++;
-			}*/
 		}
 		// If no filtered, simply draw the whole dataset available
 		else {
@@ -1574,20 +1559,6 @@ namespace ui {
 				}
 			}
 			clipper.End();  // Optional: usually not required, but explicit is good
-			/*
-			for (std::pair<int, RowInfo> pair : s_filteredData) {
-				ImGui::SetNextItemWidth(6.0f);
-				if (ImGui::Button((" X ##" + std::to_string(pair.first)).c_str())) {
-					current_project->loadedFile.RemoveData(pair.first);
-				}
-				ImGui::SetItemTooltip((char*)u8"Löscht diesen kompletten Eintrag!");
-				if(StrContains(s_viewmode, "horizontal"))
-					ImGui::SameLine();
-				DisplayData(pair.second, pair.first, s_viewmode, s_hiddenHeaders);
-				if (pair.second.Changed()) {
-					current_project->loadedFile.SetRowData(pair.second, pair.first);
-				}
-			}*/
 		}
 		ImGui::EndChild();
 		ImGui::End();
